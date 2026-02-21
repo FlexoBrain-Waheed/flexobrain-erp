@@ -11,26 +11,19 @@ supabase: Client = create_client(url, key)
 # --- 2. Page Configurations ---
 st.set_page_config(page_title="FlexoBrain ERP", layout="wide", page_icon="🏭")
 
-# --- 3. Professional Lists ---
+# --- 3. Professional Technical Lists ---
 MATERIALS = ["BOPP Clear", "BOPP White", "PET 12mic", "PE White", "PVC Shrink", "Paper"]
 THICKNESS = ["12 mic", "15 mic", "20 mic", "30 mic", "38 mic", "40 mic", "50 mic"]
-# Generate Sleeves list from Z-80 to Z-140
 SLEEVES = [f"Z-{i} ({round(i*3.175, 2)}mm)" for i in range(80, 141, 4)]
 ANILOX_OPTIONS = ["360/4.5 BCM", "800/2.0 BCM", "1000/1.5 BCM", "1200/1.0 BCM"]
 
-# Product Images
-PRODUCT_IMAGES = {
-    "Labels": "https://img.freepik.com/premium-vector/blank-white-paper-sticker-labels-isolated-white-background-mockup-packaging_120819-270.jpg",
-    "Flexible Packaging": "https://5.imimg.com/data5/SELLER/Default/2021/3/EO/RY/MB/13309653/flexible-packaging-pouch-500x500.jpg"
-}
-
-# --- 4. PDF Generation Function (A4) ---
+# --- 4. PDF Generation Logic ---
 def generate_job_order_pdf(data):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", 'B', 22)
     pdf.cell(190, 20, "FLEXOBRAIN ERP - JOB ORDER", ln=True, align='C')
-    pdf.ln(5)
+    pdf.ln(10)
     
     pdf.set_font("Arial", size=11)
     for key, value in data.items():
@@ -45,18 +38,16 @@ def generate_job_order_pdf(data):
     pdf.cell(95, 10, "Quality Control Approval: __________", ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 5. User Interface (UI) ---
+# --- 5. Application UI ---
 st.title("📂 Master Job Order System")
 st.markdown("---")
 
-# Sidebar - Visual Guide
-with st.sidebar:
-    st.header("🎨 Product Reference")
-    category = st.selectbox("Select Category", list(PRODUCT_IMAGES.keys()))
-    st.image(PRODUCT_IMAGES[category], caption=f"Typical {category} Structure", use_container_width=True)
-    
+# Session State for PDF Handling (To fix the Red Error)
+if 'process_complete' not in st.session_state:
+    st.session_state.process_complete = False
+    st.session_state.order_payload = {}
 
-# Main Entry Form
+# Main Input Form
 with st.form("master_order_form"):
     st.subheader("🛠️ Technical Specifications")
     c1, c2, c3 = st.columns(3)
@@ -77,10 +68,13 @@ with st.form("master_order_form"):
         target_speed = st.number_input("Target Speed (m/min)", value=300)
 
     st.markdown("---")
-    notes = st.text_area("Special Instructions")
+    notes = st.text_area("Special Instructions / Technical Remarks")
 
-    if st.form_submit_button("🚀 Finalize, Save & Print PDF"):
-        final_data = {
+    submit = st.form_submit_button("🚀 Save & Process Job Order")
+
+    if submit:
+        # Prepare Data for PDF and DB
+        st.session_state.order_payload = {
             "Client": client_name, "PO": po_number, "Internal ID": job_id,
             "Material": material, "Micron": micron, "Width (mm)": str(width),
             "Sleeve": sleeve_z, "Anilox": anilox_v, "Speed": str(target_speed),
@@ -88,26 +82,34 @@ with st.form("master_order_form"):
         }
         
         try:
-            # Save basic info to Supabase (ensure table structure matches)
+            # Database Sync
             supabase.table("job_orders").insert({
                 "client_name": client_name, 
                 "po_number": po_number
             }).execute()
             
-            st.success("✔️ Order Successfully Saved to Cloud!")
-            
-            # Generate and View PDF
-            pdf_bytes = generate_job_order_pdf(final_data)
-            
-            # PDF Preview (Iframe)
-            base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="700" type="application/pdf"></iframe>'
-            st.markdown("### 📄 Job Order Preview (A4)")
-            st.markdown(pdf_display, unsafe_allow_html=True)
-            
-            # Download Button
-            st.download_button(label="📥 Download Official PDF", data=pdf_bytes, file_name=f"Job_Order_{client_name}.pdf", mime='application/pdf')
-            st.balloons()
+            st.success("✔️ Cloud Sync Complete!")
+            st.session_state.process_complete = True
             
         except Exception as e:
-            st.error(f"⚠️ Error Saving Data: {e}")
+            st.error(f"⚠️ Sync Failed: {e}")
+
+# PDF Rendering Section (Outside Form to prevent errors)
+if st.session_state.process_complete:
+    st.markdown("---")
+    pdf_bytes = generate_job_order_pdf(st.session_state.order_payload)
+    
+    col_dl, col_view = st.columns([1, 2])
+    
+    with col_dl:
+        st.download_button(
+            label="📥 Download Official PDF Report",
+            data=pdf_bytes,
+            file_name=f"Job_Order_{st.session_state.order_payload['Client']}.pdf",
+            mime='application/pdf'
+        )
+    
+    # PDF Viewer
+    base64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
+    pdf_display = f'<iframe src="data:application/pdf;base64,{base64_pdf}" width="100%" height="800" type="application/pdf"></iframe>'
+    st.markdown(pdf_display, unsafe_allow_html=True)
