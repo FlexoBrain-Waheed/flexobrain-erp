@@ -9,77 +9,84 @@ supabase: Client = create_client(url, key)
 
 st.set_page_config(page_title="FlexoBrain ERP", layout="wide", page_icon="🏭")
 
-# --- Custom CSS for Elegance ---
-st.markdown("""
-<style>
-.main-header {font-size: 28px !important; font-weight: bold; color: #1E3A8A; margin-bottom: -10px;}
-.sub-header {font-size: 18px !important; color: #4B5563; margin-bottom: 20px;}
-</style>
-""", unsafe_allow_html=True)
-
 # --- 2. Navigation Sidebar ---
-st.sidebar.title("🏭 FlexoBrain Menu")
-page = st.sidebar.radio("Navigate to:", ["⚙️ Machine Setup", "🔞 Anilox Library"])
+st.sidebar.title("FlexoBrain Menu")
+page = st.sidebar.radio("Navigate to:", ["Machine Setup", "Anilox Library"])
 
-# --- PAGE 1: INTERACTIVE MACHINE SETUP ---
-if page == "⚙️ Machine Setup":
-    st.markdown('<p class="main-header">Interactive Machine Configuration</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Define your CI Flexo press specifications with high precision.</p>', unsafe_allow_html=True)
-    
-    with st.container(border=True):
-        col1, col2 = st.columns([1, 1])
-        
+# --- PAGE 1: Machine Setup ---
+if page == "Machine Setup":
+    st.title("⚙️ Comprehensive Machine Configuration")
+    st.markdown("Define your CI/Inline Flexo press specifications with high precision.")
+
+    with st.form("machine_setup_form"):
+        st.subheader("1. Core Specifications")
+        col1, col2 = st.columns(2)
         with col1:
-            st.subheader("1. Core Specifications")
-            # Default placeholder matching high-end CI machines
-            m_name = st.text_input("Machine Name & Model", placeholder="e.g., SOMA Optima 820")
-            
-            # Interactive UI for Drive System
-            st.write("**Drive System Architecture**")
-            drive_type = st.radio("Drive Type", ["Gearless (Servo-Driven)", "Gear Type (Cylinder)"], horizontal=True, label_visibility="collapsed")
-            
-            m_width = st.number_input("Max Web Width (mm)", min_value=100, max_value=2500, value=820, step=10)
-            m_speed = st.number_input("Max Mechanical Speed (m/min)", min_value=50, max_value=1000, value=300, step=50)
-
+            m_name = st.text_input("Machine Name & Model")
+            m_drive = st.radio("Drive System Architecture", ["Gearless (Servo-Driven)", "Gear Type (Cylinder)"], horizontal=True)
+            m_web_width = st.number_input("Max Web Width (mm)", value=330)
+            m_print_width = st.number_input("Actual Print Width (mm)", value=320)
+        
         with col2:
-            st.subheader("2. Printing Units Setup")
-            # INTERACTIVE SLIDER FOR COLORS
-            num_colors = st.slider("Number of Printing Stations", min_value=1, max_value=12, value=8)
-            
-            st.write(f"**Configure Drying System for {num_colors} units:**")
-            primary_dryer = st.selectbox("Primary Drying Capability", ["Hot Air Only", "UV Only", "UV + Hot Air", "LED UV"])
-            
-            st.info(f"💡 The system will register this press with {num_colors} color stations and {primary_dryer} drying.")
+            m_speed = st.number_input("Max Mechanical Speed (m/min)", value=150)
+            m_colors = st.number_input("Number of Printing Stations", min_value=1, max_value=20, value=8)
+            m_dryer = st.selectbox("Primary Drying Capability", ["UV", "Hot Air", "IR", "UV + Hot Air"])
+            m_pitch = st.number_input("Gear Pitch (mm) - Skip if Gearless", value=3.175, format="%.3f")
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    
-    if st.button("🚀 Save Press Configuration", use_container_width=True, type="primary"):
-        if m_name:
+        st.markdown("---")
+        st.subheader("2. Web Handling & Tooling")
+        col3, col4 = st.columns(2)
+        with col3:
+            m_unwind = st.number_input("Unwind Max Diameter (mm)", value=1000)
+            m_rewind = st.number_input("Rewind Max Diameter (mm)", value=1000)
+            m_die_cut = st.number_input("Die-Cutting Stations", min_value=0, max_value=5, value=0)
+        
+        with col4:
+            m_camera = st.selectbox("Inspection Camera System", ["None", "BST", "AVT", "Erhardt+Leimer", "Other"])
+            st.markdown("Inline Processing Units:")
+            m_corona = st.checkbox("Corona Treater System")
+            m_turnbar = st.checkbox("Turn-bar (Front/Back Printing)")
+            m_coldfoil = st.checkbox("Cold Foil Unit")
+
+        submit = st.form_submit_button("🚀 Save Full Press Configuration")
+
+        if submit:
             try:
-                # Insert data into the new relational table
+                # Mapping data to Supabase columns
                 supabase.table("printing_machines").insert({
                     "machine_name": m_name,
-                    "drive_system": drive_type,
-                    "max_web_width": m_width,
+                    "drive_system": m_drive,
+                    "max_web_width": m_web_width,
                     "max_speed": m_speed,
-                    "number_of_colors": num_colors,
-                    "primary_dryer": primary_dryer
+                    "number_of_colors": m_colors,
+                    "primary_dryer": m_dryer,
+                    "print_width": m_print_width,
+                    "gear_pitch": m_pitch,
+                    "unwind_max_dia": m_unwind,
+                    "rewind_max_dia": m_rewind,
+                    "corona_treater": m_corona,
+                    "die_cutting_stations": m_die_cut,
+                    "turn_bar": m_turnbar,
+                    "cold_foil": m_coldfoil,
+                    "inspection_camera": m_camera
                 }).execute()
-                st.success(f"✅ Master configuration for '{m_name}' has been successfully saved to the cloud!")
+                st.success(f"Machine '{m_name}' has been saved successfully with all specifications!")
             except Exception as e:
-                st.error(f"⚠️ Sync Error: {e}")
-        else:
-            st.warning("⚠️ Please provide a valid Machine Name.")
+                st.error(f"Error saving data: {e}")
 
-    # Display existing infrastructure elegantly
     st.markdown("---")
     st.subheader("🏭 Factory Fleet Overview")
-    fleet = supabase.table("printing_machines").select("*").execute()
-    if fleet.data:
-        df = pd.DataFrame(fleet.data)
-        st.dataframe(df[["machine_name", "drive_system", "number_of_colors", "max_web_width", "max_speed"]], use_container_width=True)
+    try:
+        m_data = supabase.table("printing_machines").select("*").execute()
+        if m_data.data:
+            df = pd.DataFrame(m_data.data)
+            display_cols = ["machine_name", "drive_system", "number_of_colors", "max_web_width", "print_width", "max_speed"]
+            existing_cols = [c for c in display_cols if c in df.columns]
+            st.dataframe(df[existing_cols])
+    except Exception as e:
+        st.warning("No machines found or database still updating.")
 
-# --- PAGE 2: ANILOX LIBRARY ---
-elif page == "🔞 Anilox Library":
-    st.markdown('<p class="main-header">Anilox Inventory Management</p>', unsafe_allow_html=True)
-    st.info("Here we will dynamically link specific Anilox rolls to the machines you just created. (Coming Next!)")
+# --- PAGE 2: Anilox Library ---
+elif page == "Anilox Library":
+    st.title("🛼 Anilox Roll Inventory")
+    st.write("This section will manage your Anilox rolls linked to specific machines.")
