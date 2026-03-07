@@ -4,10 +4,10 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- Corrected SVG Drawing Function (Accurate Winding Logic) ---
+# --- Precise SVG Drawing Function (Winding Direction) ---
 def draw_winding_svg(direction):
     if "Clockwise" in direction and "Anti" not in direction:
-        # Clockwise #4: Arrow moves WITH clock, web opens from TOP
+        # Clockwise #4: Web opens from TOP, Arrow moves WITH clock
         svg = """
         <svg width="250" height="150" viewBox="0 0 250 150" xmlns="http://www.w3.org/2000/svg">
             <circle cx="80" cy="80" r="50" fill="#f0f4ff" stroke="#1e3a8a" stroke-width="3"/>
@@ -26,7 +26,7 @@ def draw_winding_svg(direction):
         </svg>
         """
     else:
-        # Anti-clockwise #3: Arrow moves AGAINST clock, web opens from BOTTOM
+        # Anti-clockwise #3: Web opens from BOTTOM, Arrow moves AGAINST clock
         svg = """
         <svg width="250" height="150" viewBox="0 0 250 150" xmlns="http://www.w3.org/2000/svg">
             <circle cx="80" cy="70" r="50" fill="#f0f4ff" stroke="#1e3a8a" stroke-width="3"/>
@@ -36,7 +36,7 @@ def draw_winding_svg(direction):
             <path d="M 80 120 L 220 120 L 220 145 L 80 145" fill="#f9fafb" stroke="#1e3a8a" stroke-width="2"/>
             <line x1="130" y1="120" x2="130" y2="145" stroke="#1e3a8a" stroke-dasharray="3"/>
             <line x1="180" y1="120" x2="180" y2="145" stroke="#1e3a8a" stroke-dasharray="3"/>
-            <path d="M 120 100 A 55 55 0 0 1 40 100" fill="none" stroke="#ef4444" stroke-width="4" marker-end="url(#arrowhead_inv)"/>
+            <path d="M 40 90 A 55 55 0 0 0 120 90" fill="none" stroke="#ef4444" stroke-width="4" marker-end="url(#arrowhead_inv)"/>
             <defs>
                 <marker id="arrowhead_inv" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
                     <polygon points="10 0, 0 3.5, 10 7" fill="#ef4444" />
@@ -46,7 +46,7 @@ def draw_winding_svg(direction):
         """
     return f'<div style="text-align: center; background: white; padding: 15px; border-radius: 10px; border: 1px solid #ddd;">{svg}</div>'
 
-# --- PDF Generator (A4 ERP Structured) ---
+# --- A4 PDF Generator (ERP Layout) ---
 def create_pdf(data_dict):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -109,7 +109,7 @@ def create_excel(data_dict):
         df.to_excel(writer, index=False)
     return output.getvalue()
 
-# --- Streamlit Page UI ---
+# --- Page UI ---
 st.set_page_config(page_title="Sales Job Order", layout="wide")
 st.title("📝 Create New Sales Job Order")
 
