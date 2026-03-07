@@ -4,10 +4,10 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- Section 1: SVG Engineering Drawings (Strictly Corrected Winding) ---
+# --- Section 1: SVG Engineering Drawings (STRICTLY CORRECTED) ---
 def draw_winding_svg(direction):
     if "Clockwise" in direction and "Anti" not in direction:
-        # Clockwise #4: Arrow moves WITH clock, web opens from TOP
+        # Clockwise #4: Arrow moves WITH clock (Right), web opens from TOP
         svg = """
         <svg width="300" height="160" viewBox="0 0 300 160" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -26,11 +26,11 @@ def draw_winding_svg(direction):
         </svg>
         """
     else:
-        # Anti-clockwise #3: Arrow moves AGAINST clock, web opens from BOTTOM
+        # Anti-clockwise #3: Arrow moves AGAINST clock (Left), web opens from BOTTOM
         svg = """
         <svg width="300" height="160" viewBox="0 0 300 160" xmlns="http://www.w3.org/2000/svg">
             <defs>
-                <marker id="arrowhead_inv" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                <marker id="arrowhead_inv" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
                     <polygon points="10 0, 0 3.5, 10 7" fill="#ef4444" />
                 </marker>
             </defs>
@@ -41,12 +41,12 @@ def draw_winding_svg(direction):
             <path d="M 90 130 L 250 130 L 250 155 L 90 155" fill="#f9fafb" stroke="#1e3a8a" stroke-width="2"/>
             <line x1="150" y1="130" x2="150" y2="155" stroke="#1e3a8a" stroke-dasharray="3"/>
             <line x1="200" y1="130" x2="200" y2="155" stroke="#1e3a8a" stroke-dasharray="3"/>
-            <path d="M 140 90 A 50 50 0 0 1 50 110" fill="none" stroke="#ef4444" stroke-width="4" marker-end="url(#arrowhead_inv)"/>
+            <path d="M 130 100 A 50 50 0 0 1 50 100" fill="none" stroke="#ef4444" stroke-width="4" marker-end="url(#arrowhead_inv)"/>
         </svg>
         """
     return f'<div style="text-align: center; background: white; padding: 20px; border-radius: 10px; border: 1px solid #ddd; overflow: visible;">{svg}</div>'
 
-# --- Section 2: PDF Generator (Formal A4 Layout) ---
+# --- Section 2: PDF Generator ---
 def create_pdf(data_dict):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -103,15 +103,7 @@ def create_pdf(data_dict):
 
     return pdf.output(dest='S').encode('latin-1')
 
-# --- Section 3: Excel Generator ---
-def create_excel(data_dict):
-    df = pd.DataFrame([data_dict])
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False)
-    return output.getvalue()
-
-# --- Section 4: Main Streamlit UI ---
+# --- Section 3: Main UI ---
 st.set_page_config(page_title="Sales Job Order", layout="wide")
 st.title("📝 Sales Job Order Creation")
 
@@ -182,12 +174,6 @@ if product_type != "Select Product Type...":
     }
 
     st.markdown("---")
-    ac1, ac2 = st.columns(2)
-    with ac1:
-        if st.button("📄 Export to PDF", use_container_width=True):
-            pdf_out = create_pdf(final_data)
-            st.download_button("Click here to download PDF", data=pdf_out, file_name="Job_Order.pdf")
-    with ac2:
-        if st.button("📊 Export to Excel", use_container_width=True):
-            excel_out = create_excel(final_data)
-            st.download_button("Click here to download Excel", data=excel_out, file_name="Job_Order.xlsx")
+    if st.button("📄 Export to PDF", use_container_width=True):
+        pdf_out = create_pdf(final_data)
+        st.download_button("Click here to download PDF", data=pdf_out, file_name="Job_Order.pdf")
