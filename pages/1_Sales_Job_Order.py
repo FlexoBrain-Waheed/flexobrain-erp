@@ -4,30 +4,7 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- Section 1: SVG Engineering Drawing (Simple & Clean) ---
-def draw_fixed_svg(item_n, item_f, art_no, direction_t):
-    svg_code = f"""
-    <div style="text-align: center; background: white; padding: 20px; border-radius: 12px; border: 2px solid #1e3a8a;">
-        <svg width="350" height="240" viewBox="0 0 350 240" xmlns="http://www.w3.org/2000/svg">
-            <rect x="5" y="5" width="340" height="230" rx="10" fill="white" stroke="#1e3a8a" stroke-width="1"/>
-            <rect x="160" y="15" width="175" height="60" rx="5" fill="#1e3a8a" />
-            <text x="247.5" y="38" font-family="Arial" font-size="12" font-weight="bold" fill="white" text-anchor="middle">{direction_t}</text>
-            <text x="247.5" y="60" font-family="Arial" font-size="11" fill="#93c5fd" text-anchor="middle">Art No: {art_no if art_no else "N/A"}</text>
-            <circle cx="85" cy="100" r="50" fill="#f0f4ff" stroke="#1e3a8a" stroke-width="3"/>
-            <circle cx="85" cy="100" r="18" fill="white" stroke="#1e3a8a" stroke-width="2"/>
-            <line x1="55" y1="100" x2="115" y2="100" stroke="#1e3a8a" stroke-width="1" stroke-dasharray="3"/>
-            <line x1="85" y1="70" x2="85" y2="130" stroke="#1e3a8a" stroke-width="1" stroke-dasharray="3"/>
-            <path d="M 85 145 L 260 145 L 260 175 L 85 175" fill="#f9fafb" stroke="#1e3a8a" stroke-width="2"/>
-            <line x1="145" y1="145" x2="145" y2="175" stroke="#1e3a8a" stroke-dasharray="3"/>
-            <line x1="205" y1="145" x2="205" y2="175" stroke="#1e3a8a" stroke-dasharray="3"/>
-            <text x="175" y="210" font-family="Arial" font-size="15" font-weight="bold" fill="#1e3a8a" text-anchor="middle">{item_n if item_n else "ITEM NAME"}</text>
-            <text x="175" y="230" font-family="Arial" font-size="11" fill="#64748b" text-anchor="middle">{item_f if item_f else "ITEM FORMAT"}</text>
-        </svg>
-    </div>
-    """
-    return svg_code
-
-# --- Section 2: PDF and Excel Generation ---
+# --- Functions for PDF and Excel Generation ---
 def create_excel(data_dict):
     df = pd.DataFrame([data_dict])
     output = io.BytesIO()
@@ -38,119 +15,264 @@ def create_excel(data_dict):
 def create_pdf(data_dict):
     pdf = FPDF()
     pdf.add_page()
+    
+    # Title
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Sales Job Order - ERP System", ln=True, align='C')
+    pdf.cell(0, 10, "Sales Job Order", ln=True, align='C')
     pdf.ln(10)
+    
+    # Data Rows
     for key, value in data_dict.items():
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(60, 8, f"{key}:", border=1, fill=False)
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(0, 8, str(value), border=1, ln=True)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(60, 10, f"{key}:", border=0)
+        pdf.set_font("Arial", '', 12)
+        pdf.cell(0, 10, str(value), border=0, ln=True)
+        
     return pdf.output(dest='S').encode('latin-1')
 
-# --- Main Page Config ---
+# --- Page configuration ---
 st.set_page_config(page_title="Sales Job Order", page_icon="📝", layout="wide")
+
 st.title("📝 Create New Sales Job Order")
 st.markdown("---")
 
-# Step 1: Work Type Selection
-product_type = st.selectbox("Product Type", ["Select Product Type...", "OPP Label (Wrap Around)", "Printed PE Shrink Film", "Printed LDPE Bag"])
+# 1. Customer Information
+st.subheader("👤 1. Customer Information")
+
+col1, col2, col3 = st.columns(3)
+with col1:
+    date = st.date_input("Date", datetime.date.today())
+    company_name = st.text_input("Company Name")
+with col2:
+    job_order_no = st.text_input("Job Order No.", placeholder="Auto-generated on save", disabled=True) 
+    customer_id = st.text_input("Customer ID")
+with col3:
+    po_number = st.text_input("Customer's PO#")
+    sales_po = st.text_input("Sales PO#")
+
+col_addr1, col_addr2 = st.columns(2)
+with col_addr1:
+    head_office_address = st.text_input("Company Head Office Address")
+with col_addr2:
+    delivery_address = st.text_input("Delivery Address")
+
+st.markdown("---")
+
+# 2. Product Specs 
+st.subheader("⚙️ 2. Product Specs")
+
+product_type = st.selectbox(
+    "Product Type", 
+    ["Select Product Type...", "OPP Label (Wrap Around)", "Printed PE Shrink Film", "Printed LDPE Bag"]
+)
+
+# Variables for global scope initialization
+repeat_length = width = 0
+inner_core = winding_direction = roll_weight = length = bottom_gusset = ""
+mother_roll_length = mother_roll_width = no_of_lines = edge_trim = 0
+pcs_per_roll = waste_by_mm = unused_waste = total_labels_calculated = 0
 
 if product_type != "Select Product Type...":
     
-    # Identification
-    st.subheader("📦 1. Item Identification")
-    col_i1, col_i2 = st.columns(2)
-    item_name = col_i1.text_input("Item Name")
-    item_format = col_i2.text_input("Item Format")
-
-    # Customer Information
-    st.subheader("👤 2. Customer Information")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        date = st.date_input("Date", datetime.date.today())
-        company_name = st.text_input("Company Name")
-    with col2:
-        job_order_no = st.text_input("Job Order No.", placeholder="Auto-generated", disabled=True)
-        customer_id = st.text_input("Customer ID")
-    with col3:
-        po_number = st.text_input("Customer's PO#")
-        sales_po = st.text_input("Sales PO#")
-
-    # Technical Specs
-    st.subheader("⚙️ 3. Technical Specifications")
+    # Row 1: Basic Material Specs
     col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     with col_s1:
         product_code = st.text_input("Product Code (SAP)")
-        material_type = st.selectbox("Material Type", ["BOPP", "PETG", "PE", "Other"])
     with col_s2:
-        density = st.selectbox("Density (g/cm³)", [0.91, 0.92, 1.40])
-        width = st.number_input("Width (mm)", min_value=0.0)
+        material_type = st.selectbox("Material Type", ["BOPP", "PETG", "PE", "Other"])
     with col_s3:
-        thickness = st.selectbox("Thickness (µ)", [30, 35, 38, 40])
-        repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0)
+        density = st.selectbox("Density (g/cm³)", [0.91, 0.92, 1.40]) 
     with col_s4:
-        artwork_no = st.text_input("Artwork No.")
-        colors_no = st.number_input("No. of Colors", min_value=1, max_value=10)
+        thickness = st.selectbox("Thickness (µ)", [30, 35, 38, 40])
 
-    # Visuals & Smart Calculator
+    # Row 2: Dimensions and Colors
+    col_s5, col_s6, col_s7, col_s8 = st.columns(4)
+    with col_s5:
+        width = st.number_input("Label Width (mm)", min_value=0.0) 
+    with col_s6:
+        repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0)
+    with col_s7:
+        color_of_film = st.text_input("Color of Film", value="Transparent")
+    with col_s8:
+        colors_no = st.number_input("No. of Colors in Printing", min_value=1, max_value=10)
+
+    # Row 3: Design Data
+    col_s9, col_s10 = st.columns(2)
+    with col_s9:
+        artwork = st.selectbox("Artwork Status", ["NEW", "REPEAT"])
+    with col_s10:
+        artwork_no = st.text_input("Artwork No.") 
+
+    # 3. Dynamic Section based on Product Type
+    st.markdown(f"### 🔄 Specific Specs for: {product_type}")
+
+    if product_type == "OPP Label (Wrap Around)":
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
+        with col_d2:
+            winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
+
+        # --- SMART CALCULATOR & VALIDATION SECTION ---
+        st.markdown("#### 🧮 Smart Web & Production Calculator")
+        
+        col_calc1, col_calc2, col_calc3 = st.columns(3)
+        with col_calc1:
+            mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
+        with col_calc2:
+            mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0)
+        with col_calc3:
+            no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1)
+            
+        col_calc4, col_calc5, col_calc6, col_calc7 = st.columns(4)
+        with col_calc4:
+            edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0, value=24)
+            
+        # Calculation Logic
+        if mother_roll_length > 0 and repeat_length > 0:
+            pcs_per_roll = int((mother_roll_length * 1000) / repeat_length)
+            
+        with col_calc5:
+            st.number_input("Pcs / Roll", value=pcs_per_roll, disabled=True)
+            
+        if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
+            waste_by_mm = float(mother_roll_width - (width * no_of_lines))
+            unused_waste = float(waste_by_mm - edge_trim)
+            
+        with col_calc6:
+            st.number_input("Total Waste (mm)", value=waste_by_mm, disabled=True)
+            
+        with col_calc7:
+            st.number_input("Unused Waste (mm)", value=unused_waste, disabled=True)
+
+        if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
+            required_width = (width * no_of_lines) + edge_trim
+            if required_width > mother_roll_width:
+                st.error(f"🚨 **GEOMETRY ERROR:** Required width is **{required_width} mm**, but your Mother Roll is only **{mother_roll_width} mm**!")
+            elif required_width < mother_roll_width:
+                st.warning(f"⚠️ **WIDTH WARNING:** You have **{unused_waste} mm** of UNUSED waste.")
+            else:
+                st.info(f"✅ **PERFECT FIT:** Required width exactly matches the Mother Roll.")
+
+        if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0:
+            total_labels_calculated = pcs_per_roll * no_of_lines
+            st.success(f"**💡 Production Estimate for 1 Mother Roll:** Total Exact Quantity: **{total_labels_calculated:,}** PCS")
+
+    elif product_type == "Printed PE Shrink Film":
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
+        with col_d2:
+            roll_weight = st.number_input("Roll Weight (kg)", min_value=0.0)
+            winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
+
+    elif product_type == "Printed LDPE Bag":
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            length = st.number_input("Bag Length (mm)", min_value=0)
+        with col_d2:
+            bottom_gusset = st.number_input("Bottom Gusset (mm)", min_value=0)
+
     st.markdown("---")
-    col_v1, col_v2 = st.columns([1, 1.2])
+
+    # 4. Quantity & Delivery
+    st.subheader("📦 3. Quantity & Delivery")
+    col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
     
-    with col_v1:
-        st.subheader("🔄 Production View")
-        winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
-        st.markdown(draw_fixed_svg(item_name, item_format, artwork_no, winding_direction), unsafe_allow_html=True)
+    with col_q1:
+        # Changed to number_input to allow mathematical comparison
+        quantity = st.number_input("Required Quantity by Customer", min_value=0) 
+        
+        # --- RED WARNING LOGIC ---
+        if product_type == "OPP Label (Wrap Around)" and quantity > 0 and total_labels_calculated > 0:
+            if quantity != total_labels_calculated:
+                st.markdown(
+                    f"<p style='color:red; font-size:14px; font-weight:bold;'>🚨 WARNING: Requested Quantity ({quantity:,}) does NOT match Calculated Production ({total_labels_calculated:,})!</p>", 
+                    unsafe_allow_html=True
+                )
 
-    with col_v2:
-        st.subheader("🧮 Smart Web & Production Calculator")
-        c1, c2, c3, c_edge = st.columns(4)
-        m_length = c1.number_input("Mother Roll Length (m)", min_value=0)
-        m_width = c2.number_input("Mother Roll Width (mm)", min_value=0)
-        lanes = c3.number_input("No. of Lines (Lanes)", min_value=1, value=1)
-        edge_trim_val = c_edge.number_input("Edge Trim Total", value=24)
+    with col_q2:
+        packaging = st.text_input("Packaging", value="Suitable / As Usual")
+    with col_q3:
+        # Changed to date_input for calendar selection
+        due_date = st.date_input("Due Date of Order", datetime.date.today())
+    with col_q4:
+        delivery_city = st.text_input("Delivery City") 
 
-        pcs_per_roll = int((m_length * 1000) / repeat_length) if repeat_length > 0 else 0
-        total_waste = float(m_width - (width * lanes)) if m_width > 0 else 0.0
-        unused_material = float(total_waste - edge_trim_val) if total_waste > 0 else 0.0
-        total_production = pcs_per_roll * lanes
-
-        res1, res2, res3 = st.columns(3)
-        res1.metric("Pcs / Roll", f"{pcs_per_roll:,}")
-        res2.metric("Total Waste (mm)", f"{total_waste} mm")
-        res3.metric("Unused Material (mm)", f"{unused_material} mm")
-
-        if m_width > 0 and width > 0:
-            required_w = (width * lanes) + edge_trim_val
-            if required_w > m_width:
-                st.error(f"🚨 **WIDTH ERROR:** Required is {required_w}mm, but Mother Roll is {m_width}mm!")
-            elif unused_material > 10:
-                st.warning(f"⚠️ **UNUSED MATERIAL WARNING:** You have {unused_material}mm extra waste!")
-
-    # Quantity Validation
-    st.markdown("---")
-    st.subheader("📦 4. Quantity & Delivery")
-    q_col1, q_col2, q_col3 = st.columns(3)
-    order_qty = q_col1.number_input("Required Quantity (Pcs)", min_value=0)
+    # --- Data Collection for Export ---
+    job_data = {
+        "Date": str(date),
+        "Job Order No": job_order_no,
+        "Customer Name": company_name,
+        "Customer ID": customer_id,
+        "Customer PO#": po_number,
+        "Sales PO#": sales_po,          
+        "Head Office Address": head_office_address,
+        "Delivery Address": delivery_address,
+        "Delivery City": delivery_city, 
+        "Product Type": product_type,
+        "Product Code": product_code,
+        "Material Type": material_type, 
+        "Density (g/cm3)": density,     
+        "Label/Film Width (mm)": width,
+        "Repeat Length (mm)": repeat_length, 
+        "Thickness (u)": thickness,
+        "Colors": colors_no,
+        "Color of Film": color_of_film,
+        "Artwork Status": artwork,
+        "Artwork No.": artwork_no,      
+        "Required Quantity": quantity,
+        "Packaging": packaging,
+        "Due Date": str(due_date) # Convert date to string for export
+    }
     
-    if order_qty > 0 and total_production > 0:
-        if order_qty != total_production:
-            st.error(f"🚨 **QUANTITY MISMATCH:** Order asks for {order_qty:,} pcs, but production yields {total_production:,} pcs!")
-        else:
-            st.success("✅ Quantity matches production yield.")
+    # Add dynamic fields for printing
+    if product_type == "OPP Label (Wrap Around)":
+        job_data["Mother Roll Length (m)"] = mother_roll_length
+        job_data["Mother Roll Width (mm)"] = mother_roll_width
+        job_data["No. of Lines"] = no_of_lines
+        job_data["Target Edge Trim (mm)"] = edge_trim
+        job_data["Total Waste (mm)"] = waste_by_mm
+        job_data["Unused Waste (mm)"] = unused_waste
+        job_data["Pcs/Roll"] = pcs_per_roll
+        job_data["Inner Core"] = inner_core
+        job_data["Winding Direction"] = winding_direction
+        
+    elif product_type == "Printed PE Shrink Film":
+        job_data["Inner Core"] = inner_core
+        job_data["Roll Weight (kg)"] = roll_weight
+        job_data["Winding Direction"] = winding_direction
+        
+    elif product_type == "Printed LDPE Bag":
+        job_data["Bag Length (mm)"] = length
+        job_data["Bottom Gusset (mm)"] = bottom_gusset
 
-    due_date = q_col2.date_input("Due Date", datetime.date.today())
-    delivery_city = q_col3.text_input("Delivery City")
-
-    # Actions
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # --- Action Buttons Row ---
     st.subheader("🎯 Actions")
-    job_data = {"Item": item_name, "Format": item_format, "Customer": company_name, "Quantity": order_qty, "Due Date": str(due_date)}
+    btn_col1, btn_col2, btn_col3 = st.columns(3)
     
-    b1, b2, b3 = st.columns(3)
-    with b1:
-        if st.button("💾 Save Job Order", type="primary", use_container_width=True):
-            st.success("Saved!")
-    with b2:
-        st.download_button("📊 Export Excel", data=create_excel(job_data), file_name="Job_Order.xlsx", use_container_width=True)
-    with b3:
-        st.download_button("📄 Export PDF", data=create_pdf(job_data), file_name="Job_Order.pdf", use_container_width=True)
+    with btn_col1:
+        if st.button("💾 Save & Send to Production", type="primary", use_container_width=True):
+            st.success("Job Order saved successfully! Ready for production review.")
+            
+    with btn_col2:
+        excel_file = create_excel(job_data)
+        st.download_button(
+            label="📊 Export to Excel",
+            data=excel_file,
+            file_name="Job_Order_Export.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+        
+    with btn_col3:
+        pdf_file = create_pdf(job_data)
+        st.download_button(
+            label="📄 Export to PDF",
+            data=pdf_file,
+            file_name="Job_Order_Export.pdf",
+            mime="application/pdf",
+            use_container_width=True
+        )
