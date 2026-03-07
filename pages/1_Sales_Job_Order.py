@@ -66,9 +66,10 @@ product_type = st.selectbox(
     ["Select Product Type...", "OPP Label (Wrap Around)", "Printed PE Shrink Film", "Printed LDPE Bag"]
 )
 
-# Variables for global scope (so they don't cause errors if not selected)
-repeat_length = 0
-width = 0
+# Variables for global scope initialization
+repeat_length = width = 0
+inner_core = pcs_per_roll = winding_direction = roll_weight = length = bottom_gusset = ""
+mother_roll_length = mother_roll_width = no_of_lines = edge_trim = 0
 
 if product_type != "Select Product Type...":
     
@@ -86,7 +87,7 @@ if product_type != "Select Product Type...":
     # Row 2: Dimensions and Colors
     col_s5, col_s6, col_s7, col_s8 = st.columns(4)
     with col_s5:
-        width = st.number_input("Width (mm)", min_value=0)
+        width = st.number_input("Label Width (mm)", min_value=0) # Changed label slightly for clarity
     with col_s6:
         repeat_length = st.number_input("Repeat Length (mm)", min_value=0)
     with col_s7:
@@ -103,10 +104,6 @@ if product_type != "Select Product Type...":
 
     # 3. Dynamic Section based on Product Type
     st.markdown(f"### 🔄 Specific Specs for: {product_type}")
-    
-    # Variables for dynamic fields initialization
-    inner_core = pcs_per_roll = winding_direction = roll_weight = length = bottom_gusset = ""
-    mother_roll_length = mother_roll_width = no_of_lines = 0
 
     if product_type == "OPP Label (Wrap Around)":
         col_d1, col_d2 = st.columns(2)
@@ -115,35 +112,55 @@ if product_type != "Select Product Type...":
         with col_d2:
             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
-        # --- SMART CALCULATOR SECTION ---
-        st.markdown("#### 🧮 Calculator & Mother Roll Data")
-        col_calc1, col_calc2, col_calc3, col_calc4 = st.columns(4)
+        # --- SMART CALCULATOR & VALIDATION SECTION ---
+        st.markdown("#### 🧮 Smart Web & Production Calculator")
         
+        # Row 1 of Calculator
+        col_calc1, col_calc2 = st.columns(2)
         with col_calc1:
             mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
         with col_calc2:
             mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0)
+            
+        # Row 2 of Calculator
+        col_calc3, col_calc4, col_calc5 = st.columns(3)
         with col_calc3:
             no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1)
         with col_calc4:
+            # Added Edge Trim with default 24mm (12mm each side)
+            edge_trim = st.number_input("Total Edge Trim (mm) [Left+Right]", min_value=0, value=24)
+        with col_calc5:
             pcs_per_roll = st.number_input("Target Pcs / Roll", min_value=0)
 
-        # The logic behind the smart calculation
+        # 1. Quantity Calculation Logic
         if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0:
-            # Calculate total pieces: (Length in m * 1000 / repeat length in mm) * number of lines
             total_labels_calculated = int((mother_roll_length * 1000 / repeat_length) * no_of_lines)
-            
-            # Calculate finished rolls if pcs_per_roll is defined
             total_finished_rolls = 0
             if pcs_per_roll > 0:
                 total_finished_rolls = total_labels_calculated / pcs_per_roll
                 
-            # Displaying the results in a beautiful success box
             st.success(f"""
             **💡 Production Estimate for 1 Mother Roll:**
             * Total Exact Quantity: **{total_labels_calculated:,}** PCS
             * Expected Finished Rolls: **{total_finished_rolls:,.1f}** Rolls
             """)
+
+        # 2. Web Width Validation Logic (The Magic Validation)
+        if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
+            required_width = (width * no_of_lines) + edge_trim
+            
+            if required_width > mother_roll_width:
+                # Fatal Error: Required width is bigger than actual roll
+                st.error(f"🚨 **GEOMETRY ERROR:** Required width is **{required_width} mm** ((Width {width} * {no_of_lines} lines) + {edge_trim} Trim), but your Mother Roll is only **{mother_roll_width} mm**! This is physically impossible.")
+            
+            elif required_width < mother_roll_width:
+                # Warning: Unnecessary waste
+                extra_waste = mother_roll_width - required_width
+                st.warning(f"⚠️ **WIDTH WARNING:** Required width is **{required_width} mm**. You have **{extra_waste} mm** of extra unused waste on this Mother Roll. Check your slitting plan.")
+            
+            else:
+                # Perfect Match
+                st.info(f"✅ **PERFECT FIT:** Required width matches the Mother Roll exactly (**{required_width} mm**). Excellent web planning!")
 
     elif product_type == "Printed PE Shrink Film":
         col_d1, col_d2 = st.columns(2)
@@ -156,7 +173,7 @@ if product_type != "Select Product Type...":
     elif product_type == "Printed LDPE Bag":
         col_d1, col_d2 = st.columns(2)
         with col_d1:
-            length = st.number_input("Length (mm)", min_value=0)
+            length = st.number_input("Bag Length (mm)", min_value=0)
         with col_d2:
             bottom_gusset = st.number_input("Bottom Gusset (mm)", min_value=0)
 
@@ -190,7 +207,7 @@ if product_type != "Select Product Type...":
         "Product Code": product_code,
         "Material Type": material_type, 
         "Density (g/cm3)": density,     
-        "Width (mm)": width,
+        "Label/Film Width (mm)": width,
         "Repeat Length (mm)": repeat_length, 
         "Thickness (u)": thickness,
         "Colors": colors_no,
@@ -206,6 +223,7 @@ if product_type != "Select Product Type...":
     if mother_roll_length: job_data["Mother Roll Length (m)"] = mother_roll_length
     if mother_roll_width: job_data["Mother Roll Width (mm)"] = mother_roll_width
     if no_of_lines: job_data["No. of Lines"] = no_of_lines
+    if edge_trim: job_data["Edge Trim (mm)"] = edge_trim
     if inner_core: job_data["Inner Core"] = inner_core
     if pcs_per_roll: job_data["Pcs/Roll"] = pcs_per_roll
     if winding_direction: job_data["Winding Direction"] = winding_direction
