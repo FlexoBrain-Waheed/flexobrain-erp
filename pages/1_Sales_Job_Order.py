@@ -38,7 +38,6 @@ st.markdown("---")
 
 # 1. Customer Information
 st.subheader("👤 1. Customer Information")
-# السطر الأول للبيانات الأساسية
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -51,16 +50,15 @@ with col3:
     po_number = st.text_input("Customer's PO#")
     sales_po = st.text_input("Sales PO#")
 
-# السطر الثاني مخصص للعناوين فقط لكي تكون واسعة
 col_addr1, col_addr2 = st.columns(2)
 with col_addr1:
-    head_office_address = st.text_input("Company Head Office Address") # الخانة الأولى
+    head_office_address = st.text_input("Company Head Office Address")
 with col_addr2:
-    delivery_address = st.text_input("Delivery Address") # الخانة الثانية
+    delivery_address = st.text_input("Delivery Address")
 
 st.markdown("---")
 
-# 2. Product Specs
+# 2. Product Specs (تم نقل Repeat Length هنا)
 st.subheader("⚙️ 2. Product Specs")
 
 product_type = st.selectbox(
@@ -76,6 +74,8 @@ if product_type != "Select Product Type...":
         width = st.number_input("Width (mm)", min_value=0)
         thickness = st.number_input("Thickness (µ)", min_value=0)
     with col_s2:
+        # هنا تم إضافة Repeat Length للقسم الثابت
+        repeat_length = st.number_input("Repeat Length (mm)", min_value=0) 
         colors_no = st.number_input("No. of Colors in Printing", min_value=1, max_value=10)
         color_of_film = st.text_input("Color of Film", value="Transparent")
     with col_s3:
@@ -87,20 +87,21 @@ if product_type != "Select Product Type...":
     col_d1, col_d2 = st.columns(2)
 
     # Variables for dynamic fields
-    repeat_length = inner_core = pcs_per_roll = winding_direction = roll_weight = length = bottom_gusset = ""
+    inner_core = pcs_per_roll = winding_direction = roll_weight = length = bottom_gusset = ""
 
     if product_type == "OPP Label (Wrap Around)":
         with col_d1:
-            repeat_length = st.number_input("Repeat Length (mm)", min_value=0)
-            inner_core = st.number_input("Inner Core Diameter (mm)", min_value=0)
+            # تم تحويلها لقائمة منسدلة بخيارين
+            inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
         with col_d2:
             pcs_per_roll = st.number_input("No. of Pcs / Roll", min_value=0)
-            winding_direction = st.text_input("Winding Direction#")
+            # تم تحويلها لقائمة منسدلة بالاتجاهات المطلوبة
+            winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
     elif product_type == "Printed PE Shrink Film":
         with col_d1:
-            repeat_length = st.number_input("Repeat Length (mm)", min_value=0)
-            inner_core = st.number_input("Inner Core Diameter (mm)", min_value=0)
+            # طبقت نفس القائمة المنسدلة للكور هنا أيضاً لتوحيد النظام
+            inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
         with col_d2:
             roll_weight = st.number_input("Roll Weight (kg)", min_value=0.0)
             winding_direction = st.text_input("Winding Direction")
@@ -134,12 +135,13 @@ if product_type != "Select Product Type...":
         "Customer ID": customer_id,
         "Customer PO#": po_number,
         "Sales PO#": sales_po,          
-        "Head Office Address": head_office_address, # العنوان الأول في التقرير
-        "Delivery Address": delivery_address,       # العنوان الثاني في التقرير
+        "Head Office Address": head_office_address,
+        "Delivery Address": delivery_address,
         "Delivery City": delivery_city, 
         "Product Type": product_type,
         "Product Code": product_code,
         "Width (mm)": width,
+        "Repeat Length (mm)": repeat_length, # تم إضافتها هنا لكي تطبع دائماً
         "Thickness (u)": thickness,
         "Colors": colors_no,
         "Quantity": quantity,
@@ -148,8 +150,7 @@ if product_type != "Select Product Type...":
     }
     
     # إضافة الخانات التفاعلية للطباعة فقط إذا كانت موجودة
-    if repeat_length: job_data["Repeat Length (mm)"] = repeat_length
-    if inner_core: job_data["Inner Core (mm)"] = inner_core
+    if inner_core: job_data["Inner Core"] = inner_core
     if pcs_per_roll: job_data["Pcs/Roll"] = pcs_per_roll
     if winding_direction: job_data["Winding Direction"] = winding_direction
     if roll_weight: job_data["Roll Weight (kg)"] = roll_weight
