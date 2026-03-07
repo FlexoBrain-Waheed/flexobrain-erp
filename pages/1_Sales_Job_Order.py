@@ -4,10 +4,10 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- Corrected SVG Drawing Function (Winding Logic Re-Engineered) ---
+# --- Corrected SVG Drawing Function (Accurate Winding Logic) ---
 def draw_winding_svg(direction):
-    if "Clockwise" in direction:
-        # Clockwise #4: Web opens from TOP to the right, following the arrow
+    if "Clockwise" in direction and "Anti" not in direction:
+        # Clockwise #4: Arrow moves WITH clock, web opens from TOP
         svg = """
         <svg width="250" height="150" viewBox="0 0 250 150" xmlns="http://www.w3.org/2000/svg">
             <circle cx="80" cy="80" r="50" fill="#f0f4ff" stroke="#1e3a8a" stroke-width="3"/>
@@ -26,7 +26,7 @@ def draw_winding_svg(direction):
         </svg>
         """
     else:
-        # Anti-clockwise #3: Web opens from BOTTOM to the right
+        # Anti-clockwise #3: Arrow moves AGAINST clock, web opens from BOTTOM
         svg = """
         <svg width="250" height="150" viewBox="0 0 250 150" xmlns="http://www.w3.org/2000/svg">
             <circle cx="80" cy="70" r="50" fill="#f0f4ff" stroke="#1e3a8a" stroke-width="3"/>
@@ -38,8 +38,8 @@ def draw_winding_svg(direction):
             <line x1="180" y1="120" x2="180" y2="145" stroke="#1e3a8a" stroke-dasharray="3"/>
             <path d="M 120 100 A 55 55 0 0 1 40 100" fill="none" stroke="#ef4444" stroke-width="4" marker-end="url(#arrowhead_inv)"/>
             <defs>
-                <marker id="arrowhead_inv" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
-                    <polygon points="0 0, 10 3.5, 0 7" fill="#ef4444" />
+                <marker id="arrowhead_inv" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="10 0, 0 3.5, 10 7" fill="#ef4444" />
                 </marker>
             </defs>
         </svg>
@@ -50,13 +50,10 @@ def draw_winding_svg(direction):
 def create_pdf(data_dict):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    
-    # Header
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(190, 10, "JOB ORDER - ERP SYSTEM", 0, 1, 'C')
     pdf.ln(5)
 
-    # Tables Style
     def draw_section(title, fields):
         pdf.set_fill_color(200, 220, 255)
         pdf.set_font("Arial", 'B', 10)
@@ -68,7 +65,6 @@ def create_pdf(data_dict):
             pdf.cell(145, 7, str(val), 1, 1, 'L')
         pdf.ln(3)
 
-    # Data Sections
     draw_section("CUSTOMER INFORMATION", {
         "Date": data_dict.get("Date"),
         "Job Order No": data_dict.get("Job Order No"),
@@ -97,7 +93,6 @@ def create_pdf(data_dict):
         "Delivery City": data_dict.get("Delivery City")
     })
 
-    # Approvals Box
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(190, 8, "APPROVAL SIGNATURES", 1, 1, 'C', True)
     pdf.cell(47.5, 20, "Sales", 1, 0, 'C')
@@ -118,7 +113,6 @@ def create_excel(data_dict):
 st.set_page_config(page_title="Sales Job Order", layout="wide")
 st.title("📝 Create New Sales Job Order")
 
-# 1. Customer Info
 with st.container():
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -131,7 +125,6 @@ with st.container():
         sales_po = st.text_input("Sales PO#")
         delivery_address = st.text_input("Delivery Address")
 
-# 2. Specs
 st.markdown("---")
 product_type = st.selectbox("Product Type", ["Select...", "Printed OPP Label", "PE Shrink Film"])
 
@@ -149,7 +142,6 @@ if product_type != "Select...":
     with col_s4:
         artwork_no = st.text_input("Artwork No.")
 
-    # 3. Winding Visuals
     st.subheader("🔄 Winding Direction & Calculations")
     col_v1, col_v2 = st.columns([1, 1])
     with col_v1:
@@ -158,18 +150,14 @@ if product_type != "Select...":
     with col_v2:
         st.markdown(draw_winding_svg(winding_direction), unsafe_allow_html=True)
 
-    # 4. Smart Calculator (Hidden from Print)
-    with st.expander("🧮 Smart Production Calculator (Internal Only)"):
+    with st.expander("🧮 Smart Production Calculator"):
         c1, c2, c3 = st.columns(3)
         m_length = c1.number_input("Mother Roll Length (m)", min_value=0)
         m_width = c2.number_input("Mother Roll Width (mm)", min_value=0)
         lanes = c3.number_input("No. of Lanes", min_value=1, value=1)
-        
         pcs_per_roll = int((m_length * 1000) / repeat_length) if repeat_length > 0 else 0
-        total_qty = pcs_per_roll * lanes
-        st.info(f"Production Output: {total_qty:,} pcs total ({pcs_per_roll:,} per roll)")
+        st.info(f"Production Output: {pcs_per_roll * lanes:,} pcs total")
 
-    # 5. Quantity
     st.subheader("📦 Delivery Details")
     cq1, cq2, cq3 = st.columns(3)
     quantity = cq1.number_input("Order Quantity", min_value=0)
@@ -177,7 +165,6 @@ if product_type != "Select...":
     due_date = cq3.date_input("Due Date")
     delivery_city = st.text_input("Delivery City")
 
-    # Data Prep
     export_data = {
         "Date": str(date), "Job Order No": job_order_no, "Company Name": company_name,
         "Customer ID": customer_id, "Sales PO#": sales_po, "Delivery Address": delivery_address,
@@ -188,12 +175,11 @@ if product_type != "Select...":
         "Delivery City": delivery_city, "Due Date": str(due_date)
     }
 
-    # Actions
     st.markdown("---")
     ac1, ac2 = st.columns(2)
     with ac1:
         pdf_file = create_pdf(export_data)
-        st.download_button("📄 Download PDF Job Order", data=pdf_file, file_name="Job_Order.pdf", mime="application/pdf", use_container_width=True)
+        st.download_button("📄 Download PDF Job Order", data=pdf_file, file_name="Job_Order.pdf", use_container_width=True)
     with ac2:
         excel_file = create_excel(export_data)
         st.download_button("📊 Export to Excel", data=excel_file, file_name="Job_Order.xlsx", use_container_width=True)
