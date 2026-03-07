@@ -38,20 +38,25 @@ st.markdown("---")
 
 # 1. Customer Information
 st.subheader("👤 1. Customer Information")
+# السطر الأول للبيانات الأساسية
 col1, col2, col3 = st.columns(3)
 
 with col1:
     date = st.date_input("Date", datetime.date.today())
     company_name = st.text_input("Company Name")
-    address = st.text_input("Address")
 with col2:
-    # سيتم برمجته لاحقاً ليكون تلقائي (Auto-generated)
-    job_order_no = st.text_input("Job Order No.") 
+    job_order_no = st.text_input("Job Order No.", placeholder="Auto-generated on save", disabled=True) 
     customer_id = st.text_input("Customer ID")
 with col3:
     po_number = st.text_input("Customer's PO#")
-    sales_po = st.text_input("Sales PO#") # الخانة الجديدة
-    
+    sales_po = st.text_input("Sales PO#")
+
+# السطر الثاني مخصص للعناوين فقط لكي تكون واسعة
+col_addr1, col_addr2 = st.columns(2)
+with col_addr1:
+    head_office_address = st.text_input("Company Head Office Address") # الخانة الأولى
+with col_addr2:
+    delivery_address = st.text_input("Delivery Address") # الخانة الثانية
 
 st.markdown("---")
 
@@ -110,7 +115,6 @@ if product_type != "Select Product Type...":
 
     # 4. Quantity & Delivery
     st.subheader("📦 3. Quantity & Delivery")
-    # جعلنا الأعمدة 4 بدلاً من 3 لاستيعاب مدينة التوصيل
     col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
     
     with col_q1:
@@ -120,7 +124,7 @@ if product_type != "Select Product Type...":
     with col_q3:
         due_date = st.text_input("Due Date of Order", value="ASAP")
     with col_q4:
-        delivery_city = st.text_input("Delivery City") # الخانة الجديدة
+        delivery_city = st.text_input("Delivery City") 
 
     # --- Data Collection for Export ---
     job_data = {
@@ -129,9 +133,10 @@ if product_type != "Select Product Type...":
         "Customer Name": company_name,
         "Customer ID": customer_id,
         "Customer PO#": po_number,
-        "Sales PO#": sales_po,          # تمت إضافتها للطباعة
-        "Address": address,
-        "Delivery City": delivery_city, # تمت إضافتها للطباعة
+        "Sales PO#": sales_po,          
+        "Head Office Address": head_office_address, # العنوان الأول في التقرير
+        "Delivery Address": delivery_address,       # العنوان الثاني في التقرير
+        "Delivery City": delivery_city, 
         "Product Type": product_type,
         "Product Code": product_code,
         "Width (mm)": width,
@@ -142,7 +147,7 @@ if product_type != "Select Product Type...":
         "Due Date": due_date
     }
     
-    # إضافة الخانات التفاعلية
+    # إضافة الخانات التفاعلية للطباعة فقط إذا كانت موجودة
     if repeat_length: job_data["Repeat Length (mm)"] = repeat_length
     if inner_core: job_data["Inner Core (mm)"] = inner_core
     if pcs_per_roll: job_data["Pcs/Roll"] = pcs_per_roll
@@ -159,14 +164,14 @@ if product_type != "Select Product Type...":
     
     with btn_col1:
         if st.button("💾 Save & Send to Production", type="primary", use_container_width=True):
-            st.success(f"Job Order ({job_order_no}) saved successfully! Ready for production review.")
+            st.success("Job Order saved successfully! Ready for production review.")
             
     with btn_col2:
         excel_file = create_excel(job_data)
         st.download_button(
             label="📊 Export to Excel",
             data=excel_file,
-            file_name=f"Job_Order_{job_order_no}.xlsx",
+            file_name="Job_Order_Export.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
@@ -176,7 +181,7 @@ if product_type != "Select Product Type...":
         st.download_button(
             label="📄 Export to PDF",
             data=pdf_file,
-            file_name=f"Job_Order_{job_order_no}.pdf",
+            file_name="Job_Order_Export.pdf",
             mime="application/pdf",
             use_container_width=True
         )
