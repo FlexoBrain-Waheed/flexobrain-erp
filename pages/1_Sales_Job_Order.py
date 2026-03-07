@@ -38,6 +38,8 @@ st.markdown("---")
 
 # 1. Customer Information
 st.subheader("👤 1. Customer Information")
+
+# First row for basic data
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -50,6 +52,7 @@ with col3:
     po_number = st.text_input("Customer's PO#")
     sales_po = st.text_input("Sales PO#")
 
+# Second row dedicated for wide address fields
 col_addr1, col_addr2 = st.columns(2)
 with col_addr1:
     head_office_address = st.text_input("Company Head Office Address")
@@ -58,7 +61,7 @@ with col_addr2:
 
 st.markdown("---")
 
-# 2. Product Specs (تم نقل Repeat Length هنا)
+# 2. Product Specs 
 st.subheader("⚙️ 2. Product Specs")
 
 product_type = st.selectbox(
@@ -67,44 +70,56 @@ product_type = st.selectbox(
 )
 
 if product_type != "Select Product Type...":
-    col_s1, col_s2, col_s3 = st.columns(3)
     
+    # Row 1: Basic Material Specs
+    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
     with col_s1:
         product_code = st.text_input("Product Code (SAP)")
-        width = st.number_input("Width (mm)", min_value=0)
-        thickness = st.number_input("Thickness (µ)", min_value=0)
     with col_s2:
-        # هنا تم إضافة Repeat Length للقسم الثابت
-        repeat_length = st.number_input("Repeat Length (mm)", min_value=0) 
-        colors_no = st.number_input("No. of Colors in Printing", min_value=1, max_value=10)
-        color_of_film = st.text_input("Color of Film", value="Transparent")
+        material_type = st.selectbox("Material Type", ["BOPP", "PETG", "PE", "Other"])
     with col_s3:
-        artwork = st.selectbox("Art Work", ["NEW", "REPEAT"])
-        negative = st.text_input("Negative / Design No.")
+        density = st.number_input("Density (g/cm³)", min_value=0.00, step=0.01, format="%.2f") 
+    with col_s4:
+        thickness = st.number_input("Thickness (µ)", min_value=0)
+
+    # Row 2: Dimensions and Colors (Width & Repeat Length side by side)
+    col_s5, col_s6, col_s7, col_s8 = st.columns(4)
+    with col_s5:
+        width = st.number_input("Width (mm)", min_value=0)
+    with col_s6:
+        repeat_length = st.number_input("Repeat Length (mm)", min_value=0)
+    with col_s7:
+        color_of_film = st.text_input("Color of Film", value="Transparent")
+    with col_s8:
+        colors_no = st.number_input("No. of Colors in Printing", min_value=1, max_value=10)
+
+    # Row 3: Design Data
+    col_s9, col_s10 = st.columns(2)
+    with col_s9:
+        artwork = st.selectbox("Artwork Status", ["NEW", "REPEAT"])
+    with col_s10:
+        artwork_no = st.text_input("Artwork No.") 
 
     # 3. Dynamic Section based on Product Type
     st.markdown(f"### 🔄 Specific Specs for: {product_type}")
     col_d1, col_d2 = st.columns(2)
 
-    # Variables for dynamic fields
+    # Variables for dynamic fields initialization
     inner_core = pcs_per_roll = winding_direction = roll_weight = length = bottom_gusset = ""
 
     if product_type == "OPP Label (Wrap Around)":
         with col_d1:
-            # تم تحويلها لقائمة منسدلة بخيارين
             inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
         with col_d2:
             pcs_per_roll = st.number_input("No. of Pcs / Roll", min_value=0)
-            # تم تحويلها لقائمة منسدلة بالاتجاهات المطلوبة
             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
     elif product_type == "Printed PE Shrink Film":
         with col_d1:
-            # طبقت نفس القائمة المنسدلة للكور هنا أيضاً لتوحيد النظام
             inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
         with col_d2:
             roll_weight = st.number_input("Roll Weight (kg)", min_value=0.0)
-            winding_direction = st.text_input("Winding Direction")
+            winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
     elif product_type == "Printed LDPE Bag":
         with col_d1:
@@ -140,16 +155,21 @@ if product_type != "Select Product Type...":
         "Delivery City": delivery_city, 
         "Product Type": product_type,
         "Product Code": product_code,
+        "Material Type": material_type, 
+        "Density (g/cm3)": density,     
         "Width (mm)": width,
-        "Repeat Length (mm)": repeat_length, # تم إضافتها هنا لكي تطبع دائماً
+        "Repeat Length (mm)": repeat_length, 
         "Thickness (u)": thickness,
         "Colors": colors_no,
+        "Color of Film": color_of_film,
+        "Artwork Status": artwork,
+        "Artwork No.": artwork_no,      
         "Quantity": quantity,
         "Packaging": packaging,
         "Due Date": due_date
     }
     
-    # إضافة الخانات التفاعلية للطباعة فقط إذا كانت موجودة
+    # Add dynamic fields for printing only if they exist
     if inner_core: job_data["Inner Core"] = inner_core
     if pcs_per_roll: job_data["Pcs/Roll"] = pcs_per_roll
     if winding_direction: job_data["Winding Direction"] = winding_direction
