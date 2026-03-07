@@ -70,7 +70,7 @@ product_type = st.selectbox(
 repeat_length = width = 0
 inner_core = winding_direction = roll_weight = length = bottom_gusset = ""
 mother_roll_length = mother_roll_width = no_of_lines = edge_trim = 0
-pcs_per_roll = waste_by_mm = unused_waste = 0
+pcs_per_roll = waste_by_mm = unused_waste = total_labels_calculated = 0
 
 if product_type != "Select Product Type...":
     
@@ -116,7 +116,6 @@ if product_type != "Select Product Type...":
         # --- SMART CALCULATOR & VALIDATION SECTION ---
         st.markdown("#### 🧮 Smart Web & Production Calculator")
         
-        # Row 1 of Calculator
         col_calc1, col_calc2, col_calc3 = st.columns(3)
         with col_calc1:
             mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
@@ -125,21 +124,17 @@ if product_type != "Select Product Type...":
         with col_calc3:
             no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1)
             
-        # Row 2 of Calculator (Auto-Calculated Fields)
-        # جعلنا الأعمدة 4 لاستيعاب الخانة الجديدة
         col_calc4, col_calc5, col_calc6, col_calc7 = st.columns(4)
         with col_calc4:
             edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0, value=24)
             
-        # --- Auto Calculation Logic ---
-        # 1. Calculate Pcs / Roll
+        # Calculation Logic
         if mother_roll_length > 0 and repeat_length > 0:
             pcs_per_roll = int((mother_roll_length * 1000) / repeat_length)
             
         with col_calc5:
             st.number_input("Pcs / Roll", value=pcs_per_roll, disabled=True)
             
-        # 2. Calculate Total Waste & Unused Waste
         if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
             waste_by_mm = float(mother_roll_width - (width * no_of_lines))
             unused_waste = float(waste_by_mm - edge_trim)
@@ -148,29 +143,20 @@ if product_type != "Select Product Type...":
             st.number_input("Total Waste (mm)", value=waste_by_mm, disabled=True)
             
         with col_calc7:
-            # الخانة الجديدة
             st.number_input("Unused Waste (mm)", value=unused_waste, disabled=True)
 
-        # --- Validation Messages ---
         if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
             required_width = (width * no_of_lines) + edge_trim
-            
             if required_width > mother_roll_width:
-                st.error(f"🚨 **GEOMETRY ERROR:** Required width is **{required_width} mm**, but your Mother Roll is only **{mother_roll_width} mm**! This is physically impossible.")
+                st.error(f"🚨 **GEOMETRY ERROR:** Required width is **{required_width} mm**, but your Mother Roll is only **{mother_roll_width} mm**!")
             elif required_width < mother_roll_width:
-                st.warning(f"⚠️ **WIDTH WARNING:** You have **{unused_waste} mm** of UNUSED waste beyond the target edge trim. Total waste will be {waste_by_mm} mm.")
+                st.warning(f"⚠️ **WIDTH WARNING:** You have **{unused_waste} mm** of UNUSED waste.")
             else:
-                st.info(f"✅ **PERFECT FIT:** Required width exactly matches the Mother Roll. Total waste is strictly the edge trim ({waste_by_mm} mm).")
+                st.info(f"✅ **PERFECT FIT:** Required width exactly matches the Mother Roll.")
 
-        # --- Quantity Estimate ---
         if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0:
             total_labels_calculated = pcs_per_roll * no_of_lines
-            st.success(f"""
-            **💡 Production Estimate for 1 Mother Roll:**
-            * Pcs per Final Roll: **{pcs_per_roll:,}** PCS
-            * Final Output Rolls: **{no_of_lines}** Rolls
-            * Total Exact Quantity: **{total_labels_calculated:,}** PCS
-            """)
+            st.success(f"**💡 Production Estimate for 1 Mother Roll:** Total Exact Quantity: **{total_labels_calculated:,}** PCS")
 
     elif product_type == "Printed PE Shrink Film":
         col_d1, col_d2 = st.columns(2)
@@ -194,11 +180,22 @@ if product_type != "Select Product Type...":
     col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
     
     with col_q1:
-        quantity = st.text_input("Required Quantity by Customer") 
+        # Changed to number_input to allow mathematical comparison
+        quantity = st.number_input("Required Quantity by Customer", min_value=0) 
+        
+        # --- RED WARNING LOGIC ---
+        if product_type == "OPP Label (Wrap Around)" and quantity > 0 and total_labels_calculated > 0:
+            if quantity != total_labels_calculated:
+                st.markdown(
+                    f"<p style='color:red; font-size:14px; font-weight:bold;'>🚨 WARNING: Requested Quantity ({quantity:,}) does NOT match Calculated Production ({total_labels_calculated:,})!</p>", 
+                    unsafe_allow_html=True
+                )
+
     with col_q2:
         packaging = st.text_input("Packaging", value="Suitable / As Usual")
     with col_q3:
-        due_date = st.text_input("Due Date of Order", value="ASAP")
+        # Changed to date_input for calendar selection
+        due_date = st.date_input("Due Date of Order", datetime.date.today())
     with col_q4:
         delivery_city = st.text_input("Delivery City") 
 
@@ -226,10 +223,10 @@ if product_type != "Select Product Type...":
         "Artwork No.": artwork_no,      
         "Required Quantity": quantity,
         "Packaging": packaging,
-        "Due Date": due_date
+        "Due Date": str(due_date) # Convert date to string for export
     }
     
-    # Add dynamic fields for printing only if they exist
+    # Add dynamic fields for printing
     if product_type == "OPP Label (Wrap Around)":
         job_data["Mother Roll Length (m)"] = mother_roll_length
         job_data["Mother Roll Width (mm)"] = mother_roll_width
