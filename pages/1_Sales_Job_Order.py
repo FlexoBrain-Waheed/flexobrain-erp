@@ -4,7 +4,7 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- SVG Drawing Function for Winding Direction (Fixed for Streamlit Markdown) ---
+# --- SVG Drawing Function for Winding Direction ---
 def draw_winding_svg(direction):
     if "Clockwise" in direction and "Anti" not in direction:
         # Drawing for Clockwise (Unwinding from TOP)
@@ -17,7 +17,6 @@ def draw_winding_svg(direction):
             <line x1="110" y1="20" x2="110" y2="40" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
             <line x1="160" y1="20" x2="160" y2="40" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
             <line x1="210" y1="20" x2="210" y2="40" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
-            <text x="100" y="60" font-family="Arial" font-size="11" font-weight="bold" fill="#1e3a8a">Label Face Out (Top)</text>
             <path d="M 25 60 A 35 35 0 0 1 60 25" fill="none" stroke="#ef4444" stroke-width="3"/>
             <polygon points="55,20 65,25 55,30" fill="#ef4444"/>
         </svg>"""
@@ -32,7 +31,6 @@ def draw_winding_svg(direction):
             <line x1="110" y1="80" x2="110" y2="100" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
             <line x1="160" y1="80" x2="160" y2="100" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
             <line x1="210" y1="80" x2="210" y2="100" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
-            <text x="100" y="70" font-family="Arial" font-size="11" font-weight="bold" fill="#1e3a8a">Label Face Out (Bottom)</text>
             <path d="M 25 60 A 35 35 0 0 0 60 95" fill="none" stroke="#ef4444" stroke-width="3"/>
             <polygon points="55,90 65,95 55,100" fill="#ef4444"/>
         </svg>"""
@@ -95,8 +93,8 @@ product_type = st.selectbox(
 )
 
 repeat_length = width = 0
-inner_core = winding_direction = roll_weight = length = bottom_gusset = ""
-mother_roll_length = mother_roll_width = no_of_lines = edge_trim = 0
+inner_core = core_type = winding_direction = roll_weight = length = bottom_gusset = ""
+core_thickness = mother_roll_length = mother_roll_width = no_of_lines = edge_trim = 0
 pcs_per_roll = waste_by_mm = unused_waste = total_labels_calculated = 0
 
 if product_type != "Select Product Type...":
@@ -134,9 +132,11 @@ if product_type != "Select Product Type...":
         col_d1, col_d2 = st.columns([1, 1])
         with col_d1:
             inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
+            core_type = st.selectbox("Core Material", ["Paper", "Plastic"])
+            core_thickness = st.number_input("Core Wall Thickness (mm)", min_value=0.0)
             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
         with col_d2:
-            st.markdown("**🔍 Live Unwind Direction Preview:**")
+            st.markdown("**📦 Product Look Like:**")
             st.markdown(draw_winding_svg(winding_direction), unsafe_allow_html=True)
 
         st.markdown("#### 🧮 Smart Web & Production Calculator")
@@ -183,10 +183,12 @@ if product_type != "Select Product Type...":
         col_d1, col_d2 = st.columns([1, 1])
         with col_d1:
             inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
+            core_type = st.selectbox("Core Material", ["Paper", "Plastic"])
+            core_thickness = st.number_input("Core Wall Thickness (mm)", min_value=0.0)
             roll_weight = st.number_input("Roll Weight (kg)", min_value=0.0)
             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
         with col_d2:
-            st.markdown("**🔍 Live Unwind Direction Preview:**")
+            st.markdown("**📦 Product Look Like:**")
             st.markdown(draw_winding_svg(winding_direction), unsafe_allow_html=True)
 
     elif product_type == "Printed LDPE Bag":
@@ -249,10 +251,14 @@ if product_type != "Select Product Type...":
         job_data["Unused Waste (mm)"] = unused_waste
         job_data["Pcs/Roll"] = pcs_per_roll
         job_data["Inner Core"] = inner_core
+        job_data["Core Type"] = core_type
+        job_data["Core Thickness (mm)"] = core_thickness
         job_data["Winding Direction"] = winding_direction
         
     elif product_type == "Printed PE Shrink Film":
         job_data["Inner Core"] = inner_core
+        job_data["Core Type"] = core_type
+        job_data["Core Thickness (mm)"] = core_thickness
         job_data["Roll Weight (kg)"] = roll_weight
         job_data["Winding Direction"] = winding_direction
         
