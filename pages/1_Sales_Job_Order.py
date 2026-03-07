@@ -43,12 +43,15 @@ col1, col2, col3 = st.columns(3)
 with col1:
     date = st.date_input("Date", datetime.date.today())
     company_name = st.text_input("Company Name")
+    address = st.text_input("Address")
 with col2:
-    job_order_no = st.text_input("Job Order No.")
+    # سيتم برمجته لاحقاً ليكون تلقائي (Auto-generated)
+    job_order_no = st.text_input("Job Order No.") 
     customer_id = st.text_input("Customer ID")
 with col3:
     po_number = st.text_input("Customer's PO#")
-    address = st.text_input("Address")
+    sales_po = st.text_input("Sales PO#") # الخانة الجديدة
+    
 
 st.markdown("---")
 
@@ -107,7 +110,8 @@ if product_type != "Select Product Type...":
 
     # 4. Quantity & Delivery
     st.subheader("📦 3. Quantity & Delivery")
-    col_q1, col_q2, col_q3 = st.columns(3)
+    # جعلنا الأعمدة 4 بدلاً من 3 لاستيعاب مدينة التوصيل
+    col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
     
     with col_q1:
         quantity = st.text_input("Quantity (e.g., 2,000,000 PCS or 3,000 Kg)") 
@@ -115,25 +119,30 @@ if product_type != "Select Product Type...":
         packaging = st.text_input("Packaging", value="Suitable / As Usual")
     with col_q3:
         due_date = st.text_input("Due Date of Order", value="ASAP")
+    with col_q4:
+        delivery_city = st.text_input("Delivery City") # الخانة الجديدة
 
     # --- Data Collection for Export ---
-    # نجمع كل البيانات في "قاموس" لتسهيل طباعتها في الإكسل والـ PDF
     job_data = {
         "Date": str(date),
         "Job Order No": job_order_no,
         "Customer Name": company_name,
         "Customer ID": customer_id,
-        "PO Number": po_number,
+        "Customer PO#": po_number,
+        "Sales PO#": sales_po,          # تمت إضافتها للطباعة
+        "Address": address,
+        "Delivery City": delivery_city, # تمت إضافتها للطباعة
         "Product Type": product_type,
         "Product Code": product_code,
         "Width (mm)": width,
         "Thickness (u)": thickness,
         "Colors": colors_no,
         "Quantity": quantity,
+        "Packaging": packaging,
         "Due Date": due_date
     }
     
-    # إضافة الخانات التفاعلية للطباعة فقط إذا كانت موجودة
+    # إضافة الخانات التفاعلية
     if repeat_length: job_data["Repeat Length (mm)"] = repeat_length
     if inner_core: job_data["Inner Core (mm)"] = inner_core
     if pcs_per_roll: job_data["Pcs/Roll"] = pcs_per_roll
@@ -150,10 +159,9 @@ if product_type != "Select Product Type...":
     
     with btn_col1:
         if st.button("💾 Save & Send to Production", type="primary", use_container_width=True):
-            st.success(f"Job Order ({job_order_no}) saved successfully!")
+            st.success(f"Job Order ({job_order_no}) saved successfully! Ready for production review.")
             
     with btn_col2:
-        # Download Excel Button
         excel_file = create_excel(job_data)
         st.download_button(
             label="📊 Export to Excel",
@@ -164,7 +172,6 @@ if product_type != "Select Product Type...":
         )
         
     with btn_col3:
-        # Download PDF Button
         pdf_file = create_pdf(job_data)
         st.download_button(
             label="📄 Export to PDF",
