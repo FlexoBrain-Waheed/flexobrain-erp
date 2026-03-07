@@ -78,11 +78,13 @@ if product_type != "Select Product Type...":
     with col_s2:
         material_type = st.selectbox("Material Type", ["BOPP", "PETG", "PE", "Other"])
     with col_s3:
-        density = st.number_input("Density (g/cm³)", min_value=0.00, step=0.01, format="%.2f") 
+        # التعديل هنا: تحويل الكثافة إلى قائمة منسدلة
+        density = st.selectbox("Density (g/cm³)", [0.91, 0.92, 1.40]) 
     with col_s4:
-        thickness = st.number_input("Thickness (µ)", min_value=0)
+        # التعديل هنا: تحويل السماكة إلى قائمة منسدلة
+        thickness = st.selectbox("Thickness (µ)", [30, 35, 38, 40])
 
-    # Row 2: Dimensions and Colors (Width & Repeat Length side by side)
+    # Row 2: Dimensions and Colors
     col_s5, col_s6, col_s7, col_s8 = st.columns(4)
     with col_s5:
         width = st.number_input("Width (mm)", min_value=0)
