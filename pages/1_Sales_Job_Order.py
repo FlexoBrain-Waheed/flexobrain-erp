@@ -4,50 +4,38 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- SVG Drawing Function for Winding Direction (النسخة الفيزيائية المصححة) ---
+# --- SVG Drawing Function for Winding Direction (Fixed for Streamlit Markdown) ---
 def draw_winding_svg(direction):
     if "Clockwise" in direction and "Anti" not in direction:
         # Drawing for Clockwise (Unwinding from TOP)
-        # الرول يدور مع عقارب الساعة، إذن المادة تخرج من الأعلى
-        svg = """
-        <svg width="250" height="120" viewBox="0 0 250 120" xmlns="http://www.w3.org/2000/svg">
+        svg = """<svg width="250" height="120" viewBox="0 0 250 120" xmlns="http://www.w3.org/2000/svg">
             <circle cx="60" cy="60" r="40" fill="#e0e7ff" stroke="#1e3a8a" stroke-width="3"/>
             <circle cx="60" cy="60" r="15" fill="white" stroke="#1e3a8a" stroke-width="2"/>
             <line x1="35" y1="60" x2="85" y2="60" stroke="#1e3a8a" stroke-width="1" stroke-dasharray="4"/>
             <line x1="60" y1="35" x2="60" y2="85" stroke="#1e3a8a" stroke-width="1" stroke-dasharray="4"/>
-            
             <rect x="60" y="20" width="160" height="20" fill="#f3f4f6" stroke="#1e3a8a" stroke-width="2"/>
             <line x1="110" y1="20" x2="110" y2="40" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
             <line x1="160" y1="20" x2="160" y2="40" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
             <line x1="210" y1="20" x2="210" y2="40" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
-            
             <text x="100" y="60" font-family="Arial" font-size="11" font-weight="bold" fill="#1e3a8a">Label Face Out (Top)</text>
-            
             <path d="M 25 60 A 35 35 0 0 1 60 25" fill="none" stroke="#ef4444" stroke-width="3"/>
             <polygon points="55,20 65,25 55,30" fill="#ef4444"/>
-        </svg>
-        """
+        </svg>"""
     else:
         # Drawing for Anti-Clockwise (Unwinding from BOTTOM)
-        # الرول يدور عكس عقارب الساعة، إذن المادة تخرج من الأسفل
-        svg = """
-        <svg width="250" height="120" viewBox="0 0 250 120" xmlns="http://www.w3.org/2000/svg">
+        svg = """<svg width="250" height="120" viewBox="0 0 250 120" xmlns="http://www.w3.org/2000/svg">
             <circle cx="60" cy="60" r="40" fill="#e0e7ff" stroke="#1e3a8a" stroke-width="3"/>
             <circle cx="60" cy="60" r="15" fill="white" stroke="#1e3a8a" stroke-width="2"/>
             <line x1="35" y1="60" x2="85" y2="60" stroke="#1e3a8a" stroke-width="1" stroke-dasharray="4"/>
             <line x1="60" y1="35" x2="60" y2="85" stroke="#1e3a8a" stroke-width="1" stroke-dasharray="4"/>
-            
             <rect x="60" y="80" width="160" height="20" fill="#f3f4f6" stroke="#1e3a8a" stroke-width="2"/>
             <line x1="110" y1="80" x2="110" y2="100" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
             <line x1="160" y1="80" x2="160" y2="100" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
             <line x1="210" y1="80" x2="210" y2="100" stroke="#1e3a8a" stroke-dasharray="3" stroke-width="2"/>
-            
             <text x="100" y="70" font-family="Arial" font-size="11" font-weight="bold" fill="#1e3a8a">Label Face Out (Bottom)</text>
-            
             <path d="M 25 60 A 35 35 0 0 0 60 95" fill="none" stroke="#ef4444" stroke-width="3"/>
             <polygon points="55,90 65,95 55,100" fill="#ef4444"/>
-        </svg>
-        """
+        </svg>"""
     return f'<div style="background-color: white; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; text-align: center;">{svg}</div>'
 
 # --- Functions for PDF and Excel Generation ---
