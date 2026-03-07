@@ -70,7 +70,7 @@ product_type = st.selectbox(
 repeat_length = width = 0
 inner_core = winding_direction = roll_weight = length = bottom_gusset = ""
 mother_roll_length = mother_roll_width = no_of_lines = edge_trim = 0
-pcs_per_roll = waste_by_mm = 0
+pcs_per_roll = waste_by_mm = unused_waste = 0
 
 if product_type != "Select Product Type...":
     
@@ -126,9 +126,10 @@ if product_type != "Select Product Type...":
             no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1)
             
         # Row 2 of Calculator (Auto-Calculated Fields)
-        col_calc4, col_calc5, col_calc6 = st.columns(3)
+        # جعلنا الأعمدة 4 لاستيعاب الخانة الجديدة
+        col_calc4, col_calc5, col_calc6, col_calc7 = st.columns(4)
         with col_calc4:
-            edge_trim = st.number_input("Target Edge Trim (mm) [Left+Right]", min_value=0, value=24)
+            edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0, value=24)
             
         # --- Auto Calculation Logic ---
         # 1. Calculate Pcs / Roll
@@ -138,12 +139,17 @@ if product_type != "Select Product Type...":
         with col_calc5:
             st.number_input("Pcs / Roll", value=pcs_per_roll, disabled=True)
             
-        # 2. Calculate Total Waste by mm
+        # 2. Calculate Total Waste & Unused Waste
         if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
             waste_by_mm = float(mother_roll_width - (width * no_of_lines))
+            unused_waste = float(waste_by_mm - edge_trim)
             
         with col_calc6:
-            st.number_input("Waste by mm", value=waste_by_mm, disabled=True)
+            st.number_input("Total Waste (mm)", value=waste_by_mm, disabled=True)
+            
+        with col_calc7:
+            # الخانة الجديدة
+            st.number_input("Unused Waste (mm)", value=unused_waste, disabled=True)
 
         # --- Validation Messages ---
         if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
@@ -152,8 +158,7 @@ if product_type != "Select Product Type...":
             if required_width > mother_roll_width:
                 st.error(f"🚨 **GEOMETRY ERROR:** Required width is **{required_width} mm**, but your Mother Roll is only **{mother_roll_width} mm**! This is physically impossible.")
             elif required_width < mother_roll_width:
-                extra_waste = mother_roll_width - required_width
-                st.warning(f"⚠️ **WIDTH WARNING:** You have **{extra_waste} mm** of extra unused waste beyond the target edge trim. Total waste will be {waste_by_mm} mm.")
+                st.warning(f"⚠️ **WIDTH WARNING:** You have **{unused_waste} mm** of UNUSED waste beyond the target edge trim. Total waste will be {waste_by_mm} mm.")
             else:
                 st.info(f"✅ **PERFECT FIT:** Required width exactly matches the Mother Roll. Total waste is strictly the edge trim ({waste_by_mm} mm).")
 
@@ -231,6 +236,7 @@ if product_type != "Select Product Type...":
         job_data["No. of Lines"] = no_of_lines
         job_data["Target Edge Trim (mm)"] = edge_trim
         job_data["Total Waste (mm)"] = waste_by_mm
+        job_data["Unused Waste (mm)"] = unused_waste
         job_data["Pcs/Roll"] = pcs_per_roll
         job_data["Inner Core"] = inner_core
         job_data["Winding Direction"] = winding_direction
