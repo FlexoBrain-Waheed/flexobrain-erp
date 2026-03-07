@@ -4,17 +4,17 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- Section 1: Static Engineering Drawing (No Red Arrow, No Interaction) ---
+# --- Section 1: Fixed SVG Engineering Drawing (Corrected Framing) ---
 def draw_fixed_svg(item_n, item_f, art_no, direction_t):
-    # Static SVG that displays the entered data within the frame
+    # Fixed SVG with adjusted coordinates to prevent text clipping
     svg_code = f"""
     <div style="text-align: center; background: white; padding: 20px; border-radius: 12px; border: 2px solid #1e3a8a;">
-        <svg width="340" height="230" viewBox="0 0 340 230" xmlns="http://www.w3.org/2000/svg">
-            <rect x="5" y="5" width="330" height="220" rx="10" fill="white" stroke="#1e3a8a" stroke-width="1"/>
+        <svg width="340" height="240" viewBox="0 0 340 240" xmlns="http://www.w3.org/2000/svg">
+            <rect x="5" y="5" width="330" height="230" rx="10" fill="white" stroke="#1e3a8a" stroke-width="1"/>
             
             <rect x="170" y="15" width="155" height="55" rx="5" fill="#1e3a8a" />
-            <text x="247" y="33" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">{direction_t}</text>
-            <text x="247" y="55" font-family="Arial" font-size="11" fill="#93c5fd" text-anchor="middle">Art No: {art_no if art_no else "N/A"}</text>
+            <text x="247" y="35" font-family="Arial" font-size="11" font-weight="bold" fill="white" text-anchor="middle">{direction_t}</text>
+            <text x="247" y="55" font-family="Arial" font-size="10" fill="#93c5fd" text-anchor="middle">Art No: {art_no if art_no else "N/A"}</text>
 
             <circle cx="85" cy="100" r="50" fill="#f0f4ff" stroke="#1e3a8a" stroke-width="3"/>
             <circle cx="85" cy="100" r="18" fill="white" stroke="#1e3a8a" stroke-width="2"/>
@@ -25,8 +25,8 @@ def draw_fixed_svg(item_n, item_f, art_no, direction_t):
             <line x1="145" y1="145" x2="145" y2="175" stroke="#1e3a8a" stroke-dasharray="3"/>
             <line x1="205" y1="145" x2="205" y2="175" stroke="#1e3a8a" stroke-dasharray="3"/>
 
-            <text x="170" y="200" font-family="Arial" font-size="14" font-weight="bold" fill="#1e3a8a" text-anchor="middle">{item_n if item_n else "ITEM NAME"}</text>
-            <text x="170" y="218" font-family="Arial" font-size="11" fill="#64748b" text-anchor="middle">{item_f if item_f else "ITEM FORMAT"}</text>
+            <text x="170" y="205" font-family="Arial" font-size="14" font-weight="bold" fill="#1e3a8a" text-anchor="middle">{item_n if item_n else "ITEM NAME"}</text>
+            <text x="170" y="222" font-family="Arial" font-size="10" fill="#64748b" text-anchor="middle">{item_f if item_f else "ITEM FORMAT"}</text>
         </svg>
     </div>
     """
@@ -60,7 +60,7 @@ def create_pdf(data_dict):
     
     return pdf.output(dest='S').encode('latin-1')
 
-# --- Main Streamlit Application ---
+# --- Main Application ---
 st.set_page_config(page_title="Sales Job Order", layout="wide")
 st.title("📝 Sales Job Order Creation")
 
@@ -91,7 +91,6 @@ st.markdown("---")
 col_v1, col_v2 = st.columns([1, 1])
 with col_v1:
     winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
-    # Render the Fixed SVG
     st.markdown(draw_fixed_svg(item_name, item_format, artwork_no, winding_direction), unsafe_allow_html=True)
 
 with col_v2:
@@ -104,7 +103,6 @@ with col_v2:
     with c_c3:
         no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1)
     
-    # Live Calculations
     pcs_per_roll = int((mother_roll_length * 1000) / repeat_length) if repeat_length > 0 else 0
     waste = float(mother_roll_width - (width * no_of_lines)) if mother_roll_width > 0 else 0
     
@@ -121,7 +119,7 @@ quantity = cq1.text_input("Quantity")
 packaging = cq2.text_input("Packaging", value="Pallets")
 due_date = cq3.date_input("Due Date")
 
-# 5. Export Actions
+# 5. Export
 st.markdown("---")
 if st.button("📄 Generate Job Order PDF", type="primary", use_container_width=True):
     export_data = {
