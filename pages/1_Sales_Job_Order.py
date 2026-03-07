@@ -68,8 +68,9 @@ product_type = st.selectbox(
 
 # Variables for global scope initialization
 repeat_length = width = 0
-inner_core = pcs_per_roll = winding_direction = roll_weight = length = bottom_gusset = ""
+inner_core = winding_direction = roll_weight = length = bottom_gusset = ""
 mother_roll_length = mother_roll_width = no_of_lines = edge_trim = 0
+pcs_per_roll = waste_by_mm = 0
 
 if product_type != "Select Product Type...":
     
@@ -87,9 +88,9 @@ if product_type != "Select Product Type...":
     # Row 2: Dimensions and Colors
     col_s5, col_s6, col_s7, col_s8 = st.columns(4)
     with col_s5:
-        width = st.number_input("Label Width (mm)", min_value=0) # Changed label slightly for clarity
+        width = st.number_input("Label Width (mm)", min_value=0.0) 
     with col_s6:
-        repeat_length = st.number_input("Repeat Length (mm)", min_value=0)
+        repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0)
     with col_s7:
         color_of_film = st.text_input("Color of Film", value="Transparent")
     with col_s8:
@@ -116,51 +117,55 @@ if product_type != "Select Product Type...":
         st.markdown("#### 🧮 Smart Web & Production Calculator")
         
         # Row 1 of Calculator
-        col_calc1, col_calc2 = st.columns(2)
+        col_calc1, col_calc2, col_calc3 = st.columns(3)
         with col_calc1:
             mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
         with col_calc2:
             mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0)
-            
-        # Row 2 of Calculator
-        col_calc3, col_calc4, col_calc5 = st.columns(3)
         with col_calc3:
             no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1)
+            
+        # Row 2 of Calculator (Auto-Calculated Fields)
+        col_calc4, col_calc5, col_calc6 = st.columns(3)
         with col_calc4:
-            # Added Edge Trim with default 24mm (12mm each side)
-            edge_trim = st.number_input("Total Edge Trim (mm) [Left+Right]", min_value=0, value=24)
+            edge_trim = st.number_input("Target Edge Trim (mm) [Left+Right]", min_value=0, value=24)
+            
+        # --- Auto Calculation Logic ---
+        # 1. Calculate Pcs / Roll
+        if mother_roll_length > 0 and repeat_length > 0:
+            pcs_per_roll = int((mother_roll_length * 1000) / repeat_length)
+            
         with col_calc5:
-            pcs_per_roll = st.number_input("Target Pcs / Roll", min_value=0)
+            st.number_input("Pcs / Roll", value=pcs_per_roll, disabled=True)
+            
+        # 2. Calculate Total Waste by mm
+        if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
+            waste_by_mm = float(mother_roll_width - (width * no_of_lines))
+            
+        with col_calc6:
+            st.number_input("Waste by mm", value=waste_by_mm, disabled=True)
 
-        # 1. Quantity Calculation Logic
-        if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0:
-            total_labels_calculated = int((mother_roll_length * 1000 / repeat_length) * no_of_lines)
-            total_finished_rolls = 0
-            if pcs_per_roll > 0:
-                total_finished_rolls = total_labels_calculated / pcs_per_roll
-                
-            st.success(f"""
-            **💡 Production Estimate for 1 Mother Roll:**
-            * Total Exact Quantity: **{total_labels_calculated:,}** PCS
-            * Expected Finished Rolls: **{total_finished_rolls:,.1f}** Rolls
-            """)
-
-        # 2. Web Width Validation Logic (The Magic Validation)
+        # --- Validation Messages ---
         if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
             required_width = (width * no_of_lines) + edge_trim
             
             if required_width > mother_roll_width:
-                # Fatal Error: Required width is bigger than actual roll
-                st.error(f"🚨 **GEOMETRY ERROR:** Required width is **{required_width} mm** ((Width {width} * {no_of_lines} lines) + {edge_trim} Trim), but your Mother Roll is only **{mother_roll_width} mm**! This is physically impossible.")
-            
+                st.error(f"🚨 **GEOMETRY ERROR:** Required width is **{required_width} mm**, but your Mother Roll is only **{mother_roll_width} mm**! This is physically impossible.")
             elif required_width < mother_roll_width:
-                # Warning: Unnecessary waste
                 extra_waste = mother_roll_width - required_width
-                st.warning(f"⚠️ **WIDTH WARNING:** Required width is **{required_width} mm**. You have **{extra_waste} mm** of extra unused waste on this Mother Roll. Check your slitting plan.")
-            
+                st.warning(f"⚠️ **WIDTH WARNING:** You have **{extra_waste} mm** of extra unused waste beyond the target edge trim. Total waste will be {waste_by_mm} mm.")
             else:
-                # Perfect Match
-                st.info(f"✅ **PERFECT FIT:** Required width matches the Mother Roll exactly (**{required_width} mm**). Excellent web planning!")
+                st.info(f"✅ **PERFECT FIT:** Required width exactly matches the Mother Roll. Total waste is strictly the edge trim ({waste_by_mm} mm).")
+
+        # --- Quantity Estimate ---
+        if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0:
+            total_labels_calculated = pcs_per_roll * no_of_lines
+            st.success(f"""
+            **💡 Production Estimate for 1 Mother Roll:**
+            * Pcs per Final Roll: **{pcs_per_roll:,}** PCS
+            * Final Output Rolls: **{no_of_lines}** Rolls
+            * Total Exact Quantity: **{total_labels_calculated:,}** PCS
+            """)
 
     elif product_type == "Printed PE Shrink Film":
         col_d1, col_d2 = st.columns(2)
@@ -220,16 +225,24 @@ if product_type != "Select Product Type...":
     }
     
     # Add dynamic fields for printing only if they exist
-    if mother_roll_length: job_data["Mother Roll Length (m)"] = mother_roll_length
-    if mother_roll_width: job_data["Mother Roll Width (mm)"] = mother_roll_width
-    if no_of_lines: job_data["No. of Lines"] = no_of_lines
-    if edge_trim: job_data["Edge Trim (mm)"] = edge_trim
-    if inner_core: job_data["Inner Core"] = inner_core
-    if pcs_per_roll: job_data["Pcs/Roll"] = pcs_per_roll
-    if winding_direction: job_data["Winding Direction"] = winding_direction
-    if roll_weight: job_data["Roll Weight (kg)"] = roll_weight
-    if length: job_data["Bag Length (mm)"] = length
-    if bottom_gusset: job_data["Bottom Gusset (mm)"] = bottom_gusset
+    if product_type == "OPP Label (Wrap Around)":
+        job_data["Mother Roll Length (m)"] = mother_roll_length
+        job_data["Mother Roll Width (mm)"] = mother_roll_width
+        job_data["No. of Lines"] = no_of_lines
+        job_data["Target Edge Trim (mm)"] = edge_trim
+        job_data["Total Waste (mm)"] = waste_by_mm
+        job_data["Pcs/Roll"] = pcs_per_roll
+        job_data["Inner Core"] = inner_core
+        job_data["Winding Direction"] = winding_direction
+        
+    elif product_type == "Printed PE Shrink Film":
+        job_data["Inner Core"] = inner_core
+        job_data["Roll Weight (kg)"] = roll_weight
+        job_data["Winding Direction"] = winding_direction
+        
+    elif product_type == "Printed LDPE Bag":
+        job_data["Bag Length (mm)"] = length
+        job_data["Bottom Gusset (mm)"] = bottom_gusset
 
     st.markdown("<br>", unsafe_allow_html=True)
     
