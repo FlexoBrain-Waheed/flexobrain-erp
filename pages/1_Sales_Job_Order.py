@@ -4,7 +4,7 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- Section 1: SVG Engineering Drawings (Corrected & Non-Cropped) ---
+# --- Section 1: SVG Engineering Drawings (Strictly Corrected Winding) ---
 def draw_winding_svg(direction):
     if "Clockwise" in direction and "Anti" not in direction:
         # Clockwise #4: Arrow moves WITH clock, web opens from TOP
@@ -22,7 +22,7 @@ def draw_winding_svg(direction):
             <path d="M 90 30 L 250 30 L 250 55 L 90 55" fill="#f9fafb" stroke="#1e3a8a" stroke-width="2"/>
             <line x1="150" y1="30" x2="150" y2="55" stroke="#1e3a8a" stroke-dasharray="3"/>
             <line x1="200" y1="30" x2="200" y2="55" stroke="#1e3a8a" stroke-dasharray="3"/>
-            <path d="M 50 50 A 55 55 0 0 1 130 50" fill="none" stroke="#ef4444" stroke-width="4" marker-end="url(#arrowhead)"/>
+            <path d="M 40 70 A 50 50 0 0 1 125 50" fill="none" stroke="#ef4444" stroke-width="4" marker-end="url(#arrowhead)"/>
         </svg>
         """
     else:
@@ -41,7 +41,7 @@ def draw_winding_svg(direction):
             <path d="M 90 130 L 250 130 L 250 155 L 90 155" fill="#f9fafb" stroke="#1e3a8a" stroke-width="2"/>
             <line x1="150" y1="130" x2="150" y2="155" stroke="#1e3a8a" stroke-dasharray="3"/>
             <line x1="200" y1="130" x2="200" y2="155" stroke="#1e3a8a" stroke-dasharray="3"/>
-            <path d="M 135 110 A 55 55 0 0 1 45 110" fill="none" stroke="#ef4444" stroke-width="4" marker-end="url(#arrowhead_inv)"/>
+            <path d="M 140 90 A 50 50 0 0 1 50 110" fill="none" stroke="#ef4444" stroke-width="4" marker-end="url(#arrowhead_inv)"/>
         </svg>
         """
     return f'<div style="text-align: center; background: white; padding: 20px; border-radius: 10px; border: 1px solid #ddd; overflow: visible;">{svg}</div>'
@@ -115,7 +115,6 @@ def create_excel(data_dict):
 st.set_page_config(page_title="Sales Job Order", layout="wide")
 st.title("📝 Sales Job Order Creation")
 
-# 1. Customer Info
 with st.container():
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -130,7 +129,6 @@ with st.container():
 
 st.markdown("---")
 
-# 2. Product Specs
 product_type = st.selectbox("Product Type", ["Select Product Type...", "Printed OPP Label", "Printed PE Shrink Film"])
 
 if product_type != "Select Product Type...":
@@ -147,7 +145,6 @@ if product_type != "Select Product Type...":
     with col_s4:
         artwork_no = st.text_input("Artwork No.")
 
-    # 3. Winding Visuals
     st.subheader("🔄 Winding Direction & Visuals")
     col_v1, col_v2 = st.columns([1, 1])
     with col_v1:
@@ -156,7 +153,6 @@ if product_type != "Select Product Type...":
     with col_v2:
         st.markdown(draw_winding_svg(winding_direction), unsafe_allow_html=True)
 
-    # 4. Smart Production Calculator (Internal Only)
     with st.expander("🧮 Smart Production Calculator"):
         c1, c2, c3, c4 = st.columns(4)
         m_length = c1.number_input("Mother Roll Length (m)", min_value=0)
@@ -168,7 +164,6 @@ if product_type != "Select Product Type...":
         waste = float(m_width - (width * lanes)) if m_width > 0 else 0
         st.info(f"Production Estimate: {pcs_per_roll * lanes:,} Total PCS | Waste: {waste} mm")
 
-    # 5. Quantity & Delivery
     st.subheader("📦 Quantity & Delivery")
     cq1, cq2, cq3, cq4 = st.columns(4)
     quantity = cq1.number_input("Required Quantity", min_value=0)
@@ -176,7 +171,6 @@ if product_type != "Select Product Type...":
     delivery_city = cq3.text_input("Delivery City")
     due_date = cq4.date_input("Due Date")
 
-    # Data Consolidation
     final_data = {
         "Date": str(date), "Job Order No": job_order_no, "Company Name": company_name,
         "Customer ID": customer_id, "Sales PO#": sales_po, "Delivery Address": delivery_address,
@@ -187,7 +181,6 @@ if product_type != "Select Product Type...":
         "Delivery City": delivery_city, "Due Date": str(due_date)
     }
 
-    # Actions
     st.markdown("---")
     ac1, ac2 = st.columns(2)
     with ac1:
