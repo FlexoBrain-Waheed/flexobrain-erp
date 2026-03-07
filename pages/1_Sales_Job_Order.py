@@ -39,9 +39,7 @@ st.markdown("---")
 # 1. Customer Information
 st.subheader("👤 1. Customer Information")
 
-# First row for basic data
 col1, col2, col3 = st.columns(3)
-
 with col1:
     date = st.date_input("Date", datetime.date.today())
     company_name = st.text_input("Company Name")
@@ -52,7 +50,6 @@ with col3:
     po_number = st.text_input("Customer's PO#")
     sales_po = st.text_input("Sales PO#")
 
-# Second row dedicated for wide address fields
 col_addr1, col_addr2 = st.columns(2)
 with col_addr1:
     head_office_address = st.text_input("Company Head Office Address")
@@ -69,6 +66,10 @@ product_type = st.selectbox(
     ["Select Product Type...", "OPP Label (Wrap Around)", "Printed PE Shrink Film", "Printed LDPE Bag"]
 )
 
+# Variables for global scope (so they don't cause errors if not selected)
+repeat_length = 0
+width = 0
+
 if product_type != "Select Product Type...":
     
     # Row 1: Basic Material Specs
@@ -78,10 +79,8 @@ if product_type != "Select Product Type...":
     with col_s2:
         material_type = st.selectbox("Material Type", ["BOPP", "PETG", "PE", "Other"])
     with col_s3:
-        # التعديل هنا: تحويل الكثافة إلى قائمة منسدلة
         density = st.selectbox("Density (g/cm³)", [0.91, 0.92, 1.40]) 
     with col_s4:
-        # التعديل هنا: تحويل السماكة إلى قائمة منسدلة
         thickness = st.selectbox("Thickness (µ)", [30, 35, 38, 40])
 
     # Row 2: Dimensions and Colors
@@ -104,19 +103,50 @@ if product_type != "Select Product Type...":
 
     # 3. Dynamic Section based on Product Type
     st.markdown(f"### 🔄 Specific Specs for: {product_type}")
-    col_d1, col_d2 = st.columns(2)
-
+    
     # Variables for dynamic fields initialization
     inner_core = pcs_per_roll = winding_direction = roll_weight = length = bottom_gusset = ""
+    mother_roll_length = mother_roll_width = no_of_lines = 0
 
     if product_type == "OPP Label (Wrap Around)":
+        col_d1, col_d2 = st.columns(2)
         with col_d1:
             inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
         with col_d2:
-            pcs_per_roll = st.number_input("No. of Pcs / Roll", min_value=0)
             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
+        # --- SMART CALCULATOR SECTION ---
+        st.markdown("#### 🧮 Calculator & Mother Roll Data")
+        col_calc1, col_calc2, col_calc3, col_calc4 = st.columns(4)
+        
+        with col_calc1:
+            mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
+        with col_calc2:
+            mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0)
+        with col_calc3:
+            no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1)
+        with col_calc4:
+            pcs_per_roll = st.number_input("Target Pcs / Roll", min_value=0)
+
+        # The logic behind the smart calculation
+        if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0:
+            # Calculate total pieces: (Length in m * 1000 / repeat length in mm) * number of lines
+            total_labels_calculated = int((mother_roll_length * 1000 / repeat_length) * no_of_lines)
+            
+            # Calculate finished rolls if pcs_per_roll is defined
+            total_finished_rolls = 0
+            if pcs_per_roll > 0:
+                total_finished_rolls = total_labels_calculated / pcs_per_roll
+                
+            # Displaying the results in a beautiful success box
+            st.success(f"""
+            **💡 Production Estimate for 1 Mother Roll:**
+            * Total Exact Quantity: **{total_labels_calculated:,}** PCS
+            * Expected Finished Rolls: **{total_finished_rolls:,.1f}** Rolls
+            """)
+
     elif product_type == "Printed PE Shrink Film":
+        col_d1, col_d2 = st.columns(2)
         with col_d1:
             inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
         with col_d2:
@@ -124,6 +154,7 @@ if product_type != "Select Product Type...":
             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
     elif product_type == "Printed LDPE Bag":
+        col_d1, col_d2 = st.columns(2)
         with col_d1:
             length = st.number_input("Length (mm)", min_value=0)
         with col_d2:
@@ -136,7 +167,7 @@ if product_type != "Select Product Type...":
     col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
     
     with col_q1:
-        quantity = st.text_input("Quantity (e.g., 2,000,000 PCS or 3,000 Kg)") 
+        quantity = st.text_input("Required Quantity by Customer") 
     with col_q2:
         packaging = st.text_input("Packaging", value="Suitable / As Usual")
     with col_q3:
@@ -166,17 +197,20 @@ if product_type != "Select Product Type...":
         "Color of Film": color_of_film,
         "Artwork Status": artwork,
         "Artwork No.": artwork_no,      
-        "Quantity": quantity,
+        "Required Quantity": quantity,
         "Packaging": packaging,
         "Due Date": due_date
     }
     
     # Add dynamic fields for printing only if they exist
+    if mother_roll_length: job_data["Mother Roll Length (m)"] = mother_roll_length
+    if mother_roll_width: job_data["Mother Roll Width (mm)"] = mother_roll_width
+    if no_of_lines: job_data["No. of Lines"] = no_of_lines
     if inner_core: job_data["Inner Core"] = inner_core
     if pcs_per_roll: job_data["Pcs/Roll"] = pcs_per_roll
     if winding_direction: job_data["Winding Direction"] = winding_direction
     if roll_weight: job_data["Roll Weight (kg)"] = roll_weight
-    if length: job_data["Length (mm)"] = length
+    if length: job_data["Bag Length (mm)"] = length
     if bottom_gusset: job_data["Bottom Gusset (mm)"] = bottom_gusset
 
     st.markdown("<br>", unsafe_allow_html=True)
