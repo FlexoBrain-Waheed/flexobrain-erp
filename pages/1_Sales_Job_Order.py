@@ -4,7 +4,7 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- SVG Drawing Function (Updated without text and continuous arrow) ---
+# --- SVG Drawing Function (Live Preview) ---
 def draw_winding_svg(direction):
     if "Clockwise" in direction and "Anti" not in direction:
         svg = """
@@ -36,7 +36,7 @@ def draw_winding_svg(direction):
         """
     return f'<div style="background-color: white; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db; text-align: center;">{svg}</div>'
 
-# --- Custom A4 PDF Generator ---
+# --- Custom A4 PDF Generator (ERP Data based, Paper Layout) ---
 def create_pdf(data_dict):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -44,23 +44,18 @@ def create_pdf(data_dict):
     # 1. Main Header
     pdf.set_font("Arial", 'B', 18)
     pdf.set_text_color(0, 51, 102)
-    pdf.cell(190, 10, "JOB ORDER", 0, 1, 'C')
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(190, 8, "3P PRIME PLASTIC PRODUCTS", 0, 1, 'C')
+    pdf.cell(190, 10, "FLEXO ERP - JOB ORDER", 0, 1, 'C')
     pdf.ln(5)
 
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", 'B', 9)
     
-    # 2. Top Info Row
+    # 2. Date & Job Order No
     pdf.set_fill_color(230, 230, 230)
-    pdf.cell(35, 8, "DATE:", 1, 0, 'L', True)
-    pdf.cell(55, 8, data_dict.get("Date", ""), 1, 0, 'C')
-    pdf.cell(35, 8, "SAMPLE Y/N:", 1, 0, 'L', True)
-    pdf.cell(65, 8, data_dict.get("Sample", ""), 1, 1, 'C')
-
-    pdf.cell(35, 8, "JOB ORDER NO:", 1, 0, 'L', True)
-    pdf.cell(155, 8, data_dict.get("Job Order No", "Pending"), 1, 1, 'C')
+    pdf.cell(45, 8, "DATE:", 1, 0, 'L', True)
+    pdf.cell(50, 8, data_dict.get("Date", ""), 1, 0, 'C')
+    pdf.cell(45, 8, "JOB ORDER NO:", 1, 0, 'L', True)
+    pdf.cell(50, 8, data_dict.get("Job Order No", "Auto-Generated"), 1, 1, 'C')
     pdf.ln(2)
 
     # 3. Customer Info Section
@@ -74,16 +69,20 @@ def create_pdf(data_dict):
     pdf.cell(145, 8, data_dict.get("Company Name", ""), 1, 1, 'L')
     pdf.cell(45, 8, "CUSTOMER ID:", 1, 0, 'L', True)
     pdf.cell(145, 8, data_dict.get("Customer ID", ""), 1, 1, 'L')
-    pdf.cell(45, 8, "ADDRESS:", 1, 0, 'L', True)
-    pdf.cell(145, 8, data_dict.get("Address", ""), 1, 1, 'L')
+    pdf.cell(45, 8, "HEAD OFFICE:", 1, 0, 'L', True)
+    pdf.cell(145, 8, data_dict.get("Head Office Address", ""), 1, 1, 'L')
+    pdf.cell(45, 8, "DELIVERY ADDRESS:", 1, 0, 'L', True)
+    pdf.cell(145, 8, data_dict.get("Delivery Address", ""), 1, 1, 'L')
+    pdf.cell(45, 8, "CUSTOMER PO#:", 1, 0, 'L', True)
+    pdf.cell(50, 8, data_dict.get("Customer PO#", ""), 1, 0, 'C')
     pdf.cell(45, 8, "SALES PO#:", 1, 0, 'L', True)
-    pdf.cell(145, 8, data_dict.get("Sales PO#", ""), 1, 1, 'L')
+    pdf.cell(50, 8, data_dict.get("Sales PO#", ""), 1, 1, 'C')
     pdf.ln(2)
 
-    # 4. Product Specs Section
+    # 4. Product Specs Section (Pure ERP Data)
     pdf.set_fill_color(180, 180, 180)
     pdf.set_font("Arial", 'B', 11)
-    pdf.cell(190, 8, "PRODUCT SPECS.", 1, 1, 'C', True)
+    pdf.cell(190, 8, "PRODUCT SPECIFICATIONS", 1, 1, 'C', True)
     
     pdf.set_font("Arial", 'B', 9)
     pdf.set_fill_color(240, 240, 240)
@@ -93,54 +92,53 @@ def create_pdf(data_dict):
     pdf.cell(45, 8, "PRODUCT CODE:", 1, 0, 'L', True)
     pdf.cell(50, 8, data_dict.get("Product Code", ""), 1, 1, 'C')
 
-    pdf.cell(45, 8, "WIDTH mm:", 1, 0, 'L', True)
-    pdf.cell(50, 8, str(data_dict.get("Width (mm)", "")), 1, 0, 'C')
-    pdf.cell(45, 8, "COLOR OF FILM:", 1, 0, 'L', True)
-    pdf.cell(50, 8, data_dict.get("Color of Film", ""), 1, 1, 'C')
+    pdf.cell(45, 8, "MATERIAL TYPE:", 1, 0, 'L', True)
+    pdf.cell(50, 8, data_dict.get("Material Type", ""), 1, 0, 'C')
+    pdf.cell(45, 8, "DENSITY (g/cm3):", 1, 0, 'L', True)
+    pdf.cell(50, 8, str(data_dict.get("Density (g/cm3)", "")), 1, 1, 'C')
 
-    pdf.cell(45, 8, "REPEAT LENGTH mm:", 1, 0, 'L', True)
-    pdf.cell(50, 8, str(data_dict.get("Repeat Length (mm)", "")), 1, 0, 'C')
-    pdf.cell(45, 8, "NO. OF COLORS:", 1, 0, 'L', True)
+    pdf.cell(45, 8, "WIDTH (mm):", 1, 0, 'L', True)
+    pdf.cell(50, 8, str(data_dict.get("Label/Film Width (mm)", "")), 1, 0, 'C')
+    pdf.cell(45, 8, "REPEAT LENGTH (mm):", 1, 0, 'L', True)
+    pdf.cell(50, 8, str(data_dict.get("Repeat Length (mm)", "")), 1, 1, 'C')
+
+    pdf.cell(45, 8, "THICKNESS (u):", 1, 0, 'L', True)
+    pdf.cell(50, 8, str(data_dict.get("Thickness (u)", "")), 1, 0, 'C')
+    pdf.cell(45, 8, "COLORS:", 1, 0, 'L', True)
     pdf.cell(50, 8, str(data_dict.get("Colors", "")), 1, 1, 'C')
 
-    pdf.cell(45, 8, "THICKNESS u:", 1, 0, 'L', True)
-    pdf.cell(50, 8, str(data_dict.get("Thickness (u)", "")), 1, 0, 'C')
-    pdf.cell(45, 8, "ART WORK:", 1, 0, 'L', True)
+    pdf.cell(45, 8, "COLOR OF FILM:", 1, 0, 'L', True)
+    pdf.cell(50, 8, data_dict.get("Color of Film", ""), 1, 0, 'C')
+    pdf.cell(45, 8, "ARTWORK STATUS:", 1, 0, 'L', True)
     pdf.cell(50, 8, data_dict.get("Artwork Status", ""), 1, 1, 'C')
 
-    pdf.cell(45, 8, "INNER CORE mm:", 1, 0, 'L', True)
-    pdf.cell(50, 8, str(data_dict.get("Inner Core", "")), 1, 0, 'C')
-    pdf.cell(45, 8, "NEGATIVE:", 1, 0, 'L', True)
-    pdf.cell(50, 8, data_dict.get("Artwork No.", ""), 1, 1, 'C')
+    pdf.cell(45, 8, "ARTWORK NO:", 1, 0, 'L', True)
+    pdf.cell(50, 8, data_dict.get("Artwork No.", ""), 1, 0, 'C')
+    pdf.cell(45, 8, "INNER CORE:", 1, 0, 'L', True)
+    pdf.cell(50, 8, str(data_dict.get("Inner Core", "")), 1, 1, 'C')
 
-    pdf.cell(45, 8, "LABELS / REEL pcs:", 1, 0, 'L', True)
-    pdf.cell(50, 8, str(data_dict.get("Pcs/Roll", "")), 1, 0, 'C')
     pdf.cell(45, 8, "WINDING DIRECTION:", 1, 0, 'L', True)
-    pdf.cell(50, 8, str(data_dict.get("Winding Direction", "")), 1, 1, 'C')
-
-    # Notes & Converting
-    pdf.cell(45, 12, "NOTES:", 1, 0, 'L', True)
-    pdf.cell(145, 12, data_dict.get("Notes", ""), 1, 1, 'L')
-    pdf.cell(45, 10, "CONVERTING:", 1, 0, 'L', True)
-    pdf.cell(145, 10, data_dict.get("Converting", ""), 1, 1, 'L')
+    pdf.cell(145, 8, str(data_dict.get("Winding Direction", "")), 1, 1, 'C')
     pdf.ln(2)
 
     # 5. Quantity & Delivery Section
     pdf.set_fill_color(180, 180, 180)
     pdf.set_font("Arial", 'B', 11)
-    pdf.cell(190, 8, "DELIVERY TERMS", 1, 1, 'C', True)
+    pdf.cell(190, 8, "QUANTITY & DELIVERY", 1, 1, 'C', True)
     
     pdf.set_font("Arial", 'B', 9)
     pdf.set_fill_color(240, 240, 240)
-    pdf.cell(45, 8, "QUANTITY:", 1, 0, 'L', True)
-    pdf.cell(145, 8, f"{data_dict.get('Quantity', '')} Labels/Pcs", 1, 1, 'C')
+    pdf.cell(45, 8, "REQUIRED QUANTITY:", 1, 0, 'L', True)
+    pdf.cell(145, 8, str(data_dict.get("Required Quantity", "")), 1, 1, 'C')
     pdf.cell(45, 8, "PACKAGING:", 1, 0, 'L', True)
     pdf.cell(145, 8, data_dict.get("Packaging", ""), 1, 1, 'C')
+    pdf.cell(45, 8, "DELIVERY CITY:", 1, 0, 'L', True)
+    pdf.cell(50, 8, data_dict.get("Delivery City", ""), 1, 0, 'C')
     pdf.cell(45, 8, "DUE DATE:", 1, 0, 'L', True)
-    pdf.cell(145, 8, data_dict.get("Due Date", ""), 1, 1, 'C')
+    pdf.cell(50, 8, data_dict.get("Due Date", ""), 1, 1, 'C')
     pdf.ln(2)
 
-    # 6. Approvals
+    # 6. Approvals (Paper style formatting)
     pdf.set_fill_color(180, 180, 180)
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(190, 8, "APPROVALS", 1, 1, 'C', True)
@@ -154,7 +152,7 @@ def create_pdf(data_dict):
     pdf.cell(col_w, 8, "PRINTING DEPT.", 1, 0, 'C', True)
     pdf.cell(col_w, 8, "QC DEPT.", 1, 1, 'C', True)
     
-    # Signature boxes
+    # Signature boxes (Empty space for physical signing)
     pdf.cell(col_w, 20, "", 1, 0, 'C')
     pdf.cell(col_w, 20, "", 1, 0, 'C')
     pdf.cell(col_w, 20, "", 1, 0, 'C')
@@ -178,7 +176,7 @@ st.markdown("---")
 
 # 1. Customer Information
 st.subheader("👤 1. Customer Information")
-col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+col1, col2, col3 = st.columns(3)
 with col1:
     date = st.date_input("Date", datetime.date.today())
     company_name = st.text_input("Company Name")
@@ -188,8 +186,6 @@ with col2:
 with col3:
     po_number = st.text_input("Customer's PO#")
     sales_po = st.text_input("Sales PO#")
-with col4:
-    sample_yn = st.selectbox("Sample", ["Y", "N"])
 
 col_addr1, col_addr2 = st.columns(2)
 with col_addr1:
@@ -225,7 +221,7 @@ if product_type != "Select Product Type...":
 
     col_s5, col_s6, col_s7, col_s8 = st.columns(4)
     with col_s5:
-        width = st.number_input("Width (mm)", min_value=0.0) 
+        width = st.number_input("Label Width (mm)", min_value=0.0) 
     with col_s6:
         repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0)
     with col_s7:
@@ -235,17 +231,17 @@ if product_type != "Select Product Type...":
 
     col_s9, col_s10 = st.columns(2)
     with col_s9:
-        artwork = st.selectbox("Art Work", ["NEW", "REPEAT"])
+        artwork = st.selectbox("Artwork Status", ["NEW", "REPEAT"])
     with col_s10:
-        artwork_no = st.text_input("Negative / Artwork No.") 
+        artwork_no = st.text_input("Artwork No.") 
 
     st.markdown(f"### 🔄 Specific Specs for: {product_type}")
 
     if product_type == "Printed OPP Label":
         col_d1, col_d2 = st.columns([1, 1])
         with col_d1:
-            inner_core = st.selectbox("Inner Core Diameter (mm)", ["76mm (3 inch)", "152mm (6 inch)"])
-            winding_direction = st.selectbox("Winding Direction#", ["4 (Clockwise)", "3 (Anti-clockwise)"])
+            inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
+            winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
         with col_d2:
             st.markdown("**🔍 Live Unwind Direction Preview:**")
             st.markdown(draw_winding_svg(winding_direction), unsafe_allow_html=True)
@@ -266,7 +262,7 @@ if product_type != "Select Product Type...":
         if mother_roll_length > 0 and repeat_length > 0:
             pcs_per_roll = int((mother_roll_length * 1000) / repeat_length)
         with col_calc5:
-            st.number_input("Labels Count Per Reel (pcs)", value=pcs_per_roll, disabled=True)
+            st.number_input("Pcs / Roll", value=pcs_per_roll, disabled=True)
             
         if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
             waste_by_mm = float(mother_roll_width - (width * no_of_lines))
@@ -281,20 +277,11 @@ if product_type != "Select Product Type...":
 
     st.markdown("---")
 
-    st.subheader("📝 Notes & Converting")
-    col_n1, col_n2 = st.columns(2)
-    with col_n1:
-        notes = st.text_area("Notes", placeholder="Any specific requirements...")
-    with col_n2:
-        converting = st.text_input("Converting Details", value="Printed BOPP film (lines) -> Slitting to Labels reel")
-
-    st.markdown("---")
-
     st.subheader("📦 3. Quantity & Delivery")
-    col_q1, col_q2, col_q3 = st.columns(3) 
+    col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
     
     with col_q1:
-        quantity = st.number_input("Quantity", min_value=0) 
+        quantity = st.number_input("Required Quantity", min_value=0) 
         if product_type == "Printed OPP Label" and quantity > 0 and total_labels_calculated > 0:
             if quantity != total_labels_calculated:
                 st.markdown(f"<p style='color:red; font-size:14px; font-weight:bold;'>🚨 WARNING: Requested ({quantity:,}) != Calculated ({total_labels_calculated:,})!</p>", unsafe_allow_html=True)
@@ -302,33 +289,36 @@ if product_type != "Select Product Type...":
     with col_q2:
         packaging = st.text_input("Packaging", value="In pallets")
     with col_q3:
+        delivery_city = st.text_input("Delivery City")
+    with col_q4:
         due_date = st.date_input("Due Date of Order", datetime.date.today())
 
-    # --- PURE EXPORT DATA (NO SMART CALCULATOR FIELDS INCLUDED) ---
+    # --- PURE ERP EXPORT DATA (NO SMART CALCULATOR FIELDS INCLUDED) ---
     export_data = {
         "Date": str(date),
-        "Sample": sample_yn,
         "Job Order No": job_order_no,
         "Company Name": company_name,
         "Customer ID": customer_id,
-        "Address": head_office_address,
+        "Head Office Address": head_office_address,
+        "Delivery Address": delivery_address,
         "Sales PO#": sales_po,          
+        "Customer PO#": po_number,
         "Product Type": product_type,
         "Product Code": product_code,
-        "Width (mm)": width,
-        "Color of Film": color_of_film,
+        "Material Type": material_type, 
+        "Density (g/cm3)": density,     
+        "Label/Film Width (mm)": width,
         "Repeat Length (mm)": repeat_length, 
-        "Colors": colors_no,
         "Thickness (u)": thickness,
+        "Colors": colors_no,
+        "Color of Film": color_of_film,
         "Artwork Status": artwork,
-        "Inner Core": inner_core,
         "Artwork No.": artwork_no,      
-        "Pcs/Roll": pcs_per_roll if pcs_per_roll > 0 else "",
+        "Inner Core": inner_core,
         "Winding Direction": winding_direction,
-        "Notes": notes,
-        "Converting": converting,
-        "Quantity": quantity,
+        "Required Quantity": quantity,
         "Packaging": packaging,
+        "Delivery City": delivery_city,
         "Due Date": str(due_date)
     }
 
@@ -342,8 +332,8 @@ if product_type != "Select Product Type...":
             
     with btn_col2:
         excel_file = create_excel(export_data)
-        st.download_button("📊 Export to Excel", data=excel_file, file_name="Job_Order_3P.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
+        st.download_button("📊 Export to Excel", data=excel_file, file_name="Job_Order_ERP.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True)
         
     with btn_col3:
         pdf_file = create_pdf(export_data)
-        st.download_button("📄 Export to PDF", data=pdf_file, file_name="Job_Order_3P.pdf", mime="application/pdf", use_container_width=True)
+        st.download_button("📄 Export to PDF", data=pdf_file, file_name="Job_Order_ERP.pdf", mime="application/pdf", use_container_width=True)
