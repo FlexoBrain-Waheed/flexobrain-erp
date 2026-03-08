@@ -150,7 +150,8 @@ st.markdown("#### 🧻 Print, Winding & Core Specifications")
 
 col_w1, col_w2, col_w3 = st.columns(3)
 with col_w1:
-    print_position = st.selectbox("Print Surface", ["Reverse Print - Inside", "Surface Print - Outside"])
+    # --- MODIFIED: Removed "Inside" and "Outside" ---
+    print_position = st.selectbox("Print Surface", ["Reverse Print", "Surface Print"])
 with col_w2:
     unwind_position = st.selectbox("Unwind Position (Chart 1-8)", [
         "Position #1 (Top Off First)", 
