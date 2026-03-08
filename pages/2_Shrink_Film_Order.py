@@ -116,7 +116,8 @@ with col_s2:
     # Changed to only PE
     material_type = st.selectbox("Material Type", ["PE"])
 with col_s3:
-    density = st.selectbox("Density (g/cm3)", [0.92, 1.40, 1.30, 0.91]) 
+    # --- MODIFIED: Kept only PE densities (0.92, 0.91) ---
+    density = st.selectbox("Density (g/cm3)", [0.92, 0.91]) 
 with col_s4:
     # --- MODIFIED: Thickness is now a text input (كتابة) ---
     thickness = st.text_input("Thickness (u)")
