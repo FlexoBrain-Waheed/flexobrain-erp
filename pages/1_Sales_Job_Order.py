@@ -4,14 +4,7 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
-# --- Functions for PDF and Excel Generation ---
-def create_excel(data_dict):
-    df = pd.DataFrame([data_dict])
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Job Order')
-    return output.getvalue()
-
+# --- Functions for PDF Generation ---
 def create_pdf(data_dict):
     pdf = FPDF()
     pdf.add_page()
@@ -24,16 +17,21 @@ def create_pdf(data_dict):
     # Data Rows
     for key, value in data_dict.items():
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(60, 10, f"{key}:", border=0)
-        pdf.set_font("Arial", '', 12)
-        pdf.cell(0, 10, str(value), border=0, ln=True)
-        
+        if key == "Remarks / Notes":
+            pdf.cell(0, 10, f"{key}:", border=0, ln=True)
+            pdf.set_font("Arial", '', 12)
+            pdf.multi_cell(0, 10, str(value), border=0)
+        else:
+            pdf.cell(60, 10, f"{key}:", border=0)
+            pdf.set_font("Arial", '', 12)
+            pdf.cell(0, 10, str(value), border=0, ln=True)
+            
     return pdf.output(dest='S').encode('latin-1')
 
 # --- Page configuration ---
 st.set_page_config(page_title="Sales Job Order", page_icon="📝", layout="wide")
 
-st.title("📝 Create New Sales Job Order")
+st.title("📝 Create New Sales Job Order For Printed Item")
 st.markdown("---")
 
 # 1. Customer Information
@@ -111,7 +109,7 @@ if product_type != "Select Product Type...":
         with col_d1:
             inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
         with col_d2:
-            winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
+             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
         # --- SMART CALCULATOR & VALIDATION SECTION ---
         st.markdown("#### 🧮 Smart Web & Production Calculator")
@@ -180,7 +178,6 @@ if product_type != "Select Product Type...":
     col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
     
     with col_q1:
-        # Changed to number_input to allow mathematical comparison
         quantity = st.number_input("Required Quantity by Customer", min_value=0) 
         
         # --- RED WARNING LOGIC ---
@@ -194,10 +191,14 @@ if product_type != "Select Product Type...":
     with col_q2:
         packaging = st.text_input("Packaging", value="Suitable / As Usual")
     with col_q3:
-        # Changed to date_input for calendar selection
         due_date = st.date_input("Due Date of Order", datetime.date.today())
     with col_q4:
         delivery_city = st.text_input("Delivery City") 
+
+    # ADDED: Remarks / Notes Section
+    st.markdown("---")
+    st.subheader("📝 4. Additional Notes")
+    notes = st.text_area("Remarks / Notes", placeholder="Enter any specific notes or instructions here...")
 
     # --- Data Collection for Export ---
     job_data = {
@@ -223,7 +224,8 @@ if product_type != "Select Product Type...":
         "Artwork No.": artwork_no,      
         "Required Quantity": quantity,
         "Packaging": packaging,
-        "Due Date": str(due_date) # Convert date to string for export
+        "Due Date": str(due_date),
+        "Remarks / Notes": notes # Added to data dictionary
     }
     
     # Add dynamic fields for printing
@@ -251,23 +253,13 @@ if product_type != "Select Product Type...":
     
     # --- Action Buttons Row ---
     st.subheader("🎯 Actions")
-    btn_col1, btn_col2, btn_col3 = st.columns(3)
+    btn_col1, btn_col2 = st.columns(2) # Changed from 3 columns to 2
     
     with btn_col1:
         if st.button("💾 Save & Send to Production", type="primary", use_container_width=True):
             st.success("Job Order saved successfully! Ready for production review.")
             
     with btn_col2:
-        excel_file = create_excel(job_data)
-        st.download_button(
-            label="📊 Export to Excel",
-            data=excel_file,
-            file_name="Job_Order_Export.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
-        )
-        
-    with btn_col3:
         pdf_file = create_pdf(job_data)
         st.download_button(
             label="📄 Export to PDF",
