@@ -153,7 +153,8 @@ if product_type != "Select Product Type...":
     if product_type == "OPP Label (Wrap Around)":
         col_d1, col_d2 = st.columns(2)
         with col_d1:
-            inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
+            # ADDED index=1 TO MAKE "6 inch" THE DEFAULT
+            inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"], index=1)
         with col_d2:
             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
@@ -205,7 +206,8 @@ if product_type != "Select Product Type...":
     elif product_type == "Printed PE Shrink Film":
         col_d1, col_d2 = st.columns(2)
         with col_d1:
-            inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
+            # ADDED index=1 TO MAKE "6 inch" THE DEFAULT
+            inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"], index=1)
         with col_d2:
             roll_weight = st.number_input("Roll Weight (kg)", min_value=0.0)
             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
