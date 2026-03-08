@@ -113,7 +113,8 @@ col_s1, col_s2, col_s3, col_s4 = st.columns(4)
 with col_s1:
     product_code = st.text_input("Product Code (SAP)")
 with col_s2:
-    material_type = st.selectbox("Material Type", ["PE", "PETG", "PVC", "Other"])
+    # Changed to only PE
+    material_type = st.selectbox("Material Type", ["PE"])
 with col_s3:
     density = st.selectbox("Density (g/cm3)", [0.92, 1.40, 1.30, 0.91]) 
 with col_s4:
@@ -139,11 +140,19 @@ with col_s10:
 
 # Specific Specs for Shrink
 st.markdown("### 🔄 Shrink Film Specifics")
-col_d1, col_d2 = st.columns(2)
+roll_weight = st.number_input("Roll Weight (kg)", min_value=0.0)
+
+# --- ADDED: Core & Winding Specifications Section ---
+st.markdown("#### 🧻 Core & Winding Specifications")
+col_d1, col_d2, col_d3, col_d4 = st.columns(4)
 with col_d1:
     # 6 inch is index 1, making it default
     inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"], index=1)
 with col_d2:
+    core_type = st.selectbox("Core Type", ["Paper", "Plastic"])
+with col_d3:
+    core_thickness = st.number_input("Wall Thickness (mm)", min_value=0.0)
+with col_d4:
     winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
 st.markdown("---")
@@ -188,7 +197,10 @@ job_data = {
     "Color of Film": color_of_film,
     "Artwork Status": artwork,
     "Artwork No.": artwork_no, 
+    "Roll Weight (kg)": roll_weight,
     "Inner Core": inner_core,
+    "Core Type": core_type,                 
+    "Wall Thickness (mm)": core_thickness,  
     "Winding Direction": winding_direction,
     "Required Quantity": quantity,
     "Packaging": packaging,
