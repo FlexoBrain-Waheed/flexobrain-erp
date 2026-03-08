@@ -119,11 +119,9 @@ with col_s3:
 with col_s4:
     thickness = st.text_input("Thickness (u)")
 
-# --- MODIFIED: Removed Bag Width from here, kept only film & print specs ---
+# --- MODIFIED: Removed Repeat Length from here ---
 # Row 2: Dimensions and Colors
-col_s6, col_s7, col_s8 = st.columns(3)
-with col_s6:
-    repeat_length = st.number_input("Repeat Length / Pitch (mm)", min_value=0.0)
+col_s7, col_s8 = st.columns(2)
 with col_s7:
     color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"])
     if color_choice == "Other":
@@ -144,15 +142,22 @@ with col_s10:
 st.markdown("### 🔄 LDPE Bag Specifics")
 
 # --- MODIFIED: Developed the Bag Specifics section ---
-col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+col_d1, col_d2, col_d3 = st.columns(3)
 with col_d1:
     sealing_type = st.selectbox("Sealing Type", ["Bottom Sealing", "Side Sealing"])
 with col_d2:
     width = st.number_input("Bag Width (mm)", min_value=0.0) 
 with col_d3:
     length = st.number_input("Bag Length (mm)", min_value=0.0)
+
+col_d4, col_d5, col_d6 = st.columns(3)
 with col_d4:
-    bottom_gusset = st.number_input("Bottom Gusset (mm)", min_value=0.0)
+    repeat_length_is = st.selectbox("Repeat Length is:", ["Bag Width", "Bag Length"])
+with col_d5:
+    # Added None option because some bags don't have gussets
+    gusset_type = st.selectbox("Gusset Type", ["None", "Bottom", "Side"])
+with col_d6:
+    gusset_size = st.number_input("Gusset Size (mm)", min_value=0.0)
 
 st.markdown("---")
 
@@ -190,15 +195,16 @@ job_data = {
     "Material Type": material_type, 
     "Density (g/cm3)": density,     
     "Thickness (u)": thickness,
-    "Repeat Length (mm)": repeat_length, 
     "Colors": colors_no,
     "Color of Film": color_of_film,
     "Artwork Status": artwork,
     "Artwork No.": artwork_no, 
-    "Sealing Type": sealing_type,    # Added Sealing Type
-    "Bag Width (mm)": width,         # Moved to Bag Specifics
+    "Sealing Type": sealing_type,
+    "Bag Width (mm)": width,
     "Bag Length (mm)": length,
-    "Bottom Gusset (mm)": bottom_gusset,
+    "Repeat Length is": repeat_length_is,   # Added
+    "Gusset Type": gusset_type,             # Added
+    "Gusset Size (mm)": gusset_size,        # Added
     "Required Quantity": quantity,
     "Packaging": packaging,
     "Due Date": str(due_date),
