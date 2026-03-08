@@ -119,10 +119,9 @@ with col_s3:
 with col_s4:
     thickness = st.text_input("Thickness (u)")
 
+# --- MODIFIED: Removed Bag Width from here, kept only film & print specs ---
 # Row 2: Dimensions and Colors
-col_s5, col_s6, col_s7, col_s8 = st.columns(4)
-with col_s5:
-    width = st.number_input("Bag Width (mm)", min_value=0.0) 
+col_s6, col_s7, col_s8 = st.columns(3)
 with col_s6:
     repeat_length = st.number_input("Repeat Length / Pitch (mm)", min_value=0.0)
 with col_s7:
@@ -143,10 +142,16 @@ with col_s10:
 
 # Specific Specs for LDPE Bags
 st.markdown("### 🔄 LDPE Bag Specifics")
-col_d1, col_d2 = st.columns(2)
+
+# --- MODIFIED: Developed the Bag Specifics section ---
+col_d1, col_d2, col_d3, col_d4 = st.columns(4)
 with col_d1:
-    length = st.number_input("Bag Length (mm)", min_value=0.0)
+    sealing_type = st.selectbox("Sealing Type", ["Bottom Sealing", "Side Sealing"])
 with col_d2:
+    width = st.number_input("Bag Width (mm)", min_value=0.0) 
+with col_d3:
+    length = st.number_input("Bag Length (mm)", min_value=0.0)
+with col_d4:
     bottom_gusset = st.number_input("Bottom Gusset (mm)", min_value=0.0)
 
 st.markdown("---")
@@ -184,15 +189,16 @@ job_data = {
     "Product Code": product_code,
     "Material Type": material_type, 
     "Density (g/cm3)": density,     
-    "Bag Width (mm)": width,
-    "Repeat Length (mm)": repeat_length, 
-    "Bag Length (mm)": length,
-    "Bottom Gusset (mm)": bottom_gusset,
     "Thickness (u)": thickness,
+    "Repeat Length (mm)": repeat_length, 
     "Colors": colors_no,
     "Color of Film": color_of_film,
     "Artwork Status": artwork,
     "Artwork No.": artwork_no, 
+    "Sealing Type": sealing_type,    # Added Sealing Type
+    "Bag Width (mm)": width,         # Moved to Bag Specifics
+    "Bag Length (mm)": length,
+    "Bottom Gusset (mm)": bottom_gusset,
     "Required Quantity": quantity,
     "Packaging": packaging,
     "Due Date": str(due_date),
