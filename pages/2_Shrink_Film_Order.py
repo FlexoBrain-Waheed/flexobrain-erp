@@ -118,7 +118,8 @@ with col_s2:
 with col_s3:
     density = st.selectbox("Density (g/cm3)", [0.92, 1.40, 1.30, 0.91]) 
 with col_s4:
-    thickness = st.selectbox("Thickness (u)", [40, 45, 50, 60, 70])
+    # --- MODIFIED: Thickness is now a text input (كتابة) ---
+    thickness = st.text_input("Thickness (u)")
 
 # Row 2: Dimensions and Colors
 col_s5, col_s6, col_s7, col_s8 = st.columns(4)
@@ -127,7 +128,12 @@ with col_s5:
 with col_s6:
     repeat_length = st.number_input("Repeat Length / Pitch (mm)", min_value=0.0)
 with col_s7:
-    color_of_film = st.text_input("Color of Film", value="Transparent")
+    # --- MODIFIED: Color is now a choice with "Other" option ---
+    color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"])
+    if color_choice == "Other":
+        color_of_film = st.text_input("Specify Color:")
+    else:
+        color_of_film = color_choice
 with col_s8:
     colors_no = st.number_input("No. of Colors in Printing", min_value=1, max_value=10)
 
