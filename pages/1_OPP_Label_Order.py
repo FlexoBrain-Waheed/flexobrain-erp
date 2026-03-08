@@ -140,11 +140,17 @@ with col_s10:
 # 3. Dynamic Section based on OPP
 st.markdown("### 🔄 Specific Specs for: OPP Label")
 
-col_d1, col_d2 = st.columns(2)
+# --- ADDED: Core & Winding Specifications Section ---
+st.markdown("#### 🧻 Core & Winding Specifications")
+col_d1, col_d2, col_d3, col_d4 = st.columns(4)
 with col_d1:
     # Changed index to 1 to make "6 inch" the default
     inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"], index=1)
 with col_d2:
+    core_type = st.selectbox("Core Type", ["Paper", "Plastic"])
+with col_d3:
+    core_thickness = st.number_input("Wall Thickness (mm)", min_value=0.0)
+with col_d4:
     winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
 # --- SMART CALCULATOR & VALIDATION SECTION ---
@@ -257,6 +263,8 @@ job_data = {
     "Unused Waste (mm)": unused_waste,
     "Pcs/Roll": pcs_per_roll,
     "Inner Core": inner_core,
+    "Core Type": core_type,                 # Added Core Type
+    "Wall Thickness (mm)": core_thickness,  # Added Wall Thickness
     "Winding Direction": winding_direction,
     "Required Quantity": quantity,
     "Packaging": packaging,
