@@ -11,7 +11,7 @@ def create_pdf(data_dict):
     
     # Title
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Sales Job Order For Printed Item", ln=True, align='C')
+    pdf.cell(190, 10, "Sales Job Order For Printed Item", ln=True, align='C')
     pdf.ln(10)
     
     # Fields that require a full line
@@ -20,37 +20,37 @@ def create_pdf(data_dict):
     items = list(data_dict.items())
     i = 0
     
-    # Loop to print 2 items per row
+    # Loop to print 2 items per row with borders (تسطيرة)
     while i < len(items):
         key1, val1 = items[i]
         
         # If the field is a long text, give it a full row
         if key1 in full_width_fields:
             pdf.set_font("Arial", 'B', 11)
-            pdf.cell(0, 8, f"{key1}:", ln=True)
+            pdf.cell(190, 8, f"{key1}:", border=1, ln=True)
             pdf.set_font("Arial", '', 11)
-            pdf.multi_cell(0, 8, str(val1))
+            pdf.multi_cell(190, 8, str(val1), border=1)
             pdf.ln(2)
             i += 1
             continue
         
         # Column 1
         pdf.set_font("Arial", 'B', 10)
-        pdf.cell(50, 8, f"{key1}:", border=0)
+        pdf.cell(50, 8, f"{key1}:", border=1)
         pdf.set_font("Arial", '', 10)
-        pdf.cell(45, 8, str(val1)[:35], border=0)
+        pdf.cell(45, 8, str(val1)[:35], border=1)
         
         # Column 2 (Check if there is a next item and it's not a full-width field)
         if i + 1 < len(items) and items[i+1][0] not in full_width_fields:
             key2, val2 = items[i+1]
             pdf.set_font("Arial", 'B', 10)
-            pdf.cell(50, 8, f"{key2}:", border=0)
+            pdf.cell(50, 8, f"{key2}:", border=1)
             pdf.set_font("Arial", '', 10)
-            pdf.cell(45, 8, str(val2)[:35], border=0, ln=True)
+            pdf.cell(45, 8, str(val2)[:35], border=1, ln=True)
             i += 2
         else:
-            # End the line if there is no second column
-            pdf.ln(8)
+            # End the line with an empty bordered cell to keep the grid perfectly aligned
+            pdf.cell(95, 8, "", border=1, ln=True)
             i += 1
             
     return pdf.output(dest='S').encode('latin-1')
