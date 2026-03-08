@@ -19,7 +19,7 @@ def create_pdf(data_dict):
         return str(txt).encode('latin-1', 'replace').decode('latin-1')
     
     # Fields that require a full line
-    full_width_fields = ["Head Office Address", "Delivery Address", "Remarks / Notes"]
+    full_width_fields = ["Head Office Address", "Delivery Address", "Remarks / Notes", "Artwork Reference"]
     
     items = list(data_dict.items())
     i = 0
@@ -113,13 +113,10 @@ col_s1, col_s2, col_s3, col_s4 = st.columns(4)
 with col_s1:
     product_code = st.text_input("Product Code (SAP)")
 with col_s2:
-    # Changed to only PE
     material_type = st.selectbox("Material Type", ["PE"])
 with col_s3:
-    # --- MODIFIED: Kept only PE densities (0.92, 0.91) ---
     density = st.selectbox("Density (g/cm3)", [0.92, 0.91]) 
 with col_s4:
-    # --- MODIFIED: Thickness is now a text input (كتابة) ---
     thickness = st.text_input("Thickness (u)")
 
 # Row 2: Dimensions and Colors
@@ -129,7 +126,6 @@ with col_s5:
 with col_s6:
     repeat_length = st.number_input("Repeat Length / Pitch (mm)", min_value=0.0)
 with col_s7:
-    # --- MODIFIED: Color is now a choice with "Other" option ---
     color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"])
     if color_choice == "Other":
         color_of_film = st.text_input("Specify Color:")
@@ -149,18 +145,33 @@ with col_s10:
 st.markdown("### 🔄 Shrink Film Specifics")
 roll_weight = st.number_input("Roll Weight (kg)", min_value=0.0)
 
-# --- ADDED: Core & Winding Specifications Section ---
-st.markdown("#### 🧻 Core & Winding Specifications")
-col_d1, col_d2, col_d3, col_d4 = st.columns(4)
-with col_d1:
-    # 6 inch is index 1, making it default
+# --- MODIFIED: Print, Winding & Core Specifications Section ---
+st.markdown("#### 🧻 Print, Winding & Core Specifications")
+
+col_w1, col_w2, col_w3 = st.columns(3)
+with col_w1:
+    print_position = st.selectbox("Print Surface", ["Reverse Print - Inside", "Surface Print - Outside"])
+with col_w2:
+    unwind_position = st.selectbox("Unwind Position (Chart 1-8)", [
+        "Position #1 (Top Off First)", 
+        "Position #2 (Bottom Off First)", 
+        "Position #3 (Right Off First)", 
+        "Position #4 (Left Off First)", 
+        "Position #5 (Top Printed Inside)", 
+        "Position #6 (Bottom Printed Inside)", 
+        "Position #7", 
+        "Position #8"
+    ])
+with col_w3:
+    artwork_reference = st.text_input("Artwork Reference (e.g., As per approved Art No.)")
+
+col_c1, col_c2, col_c3 = st.columns(3)
+with col_c1:
     inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"], index=1)
-with col_d2:
+with col_c2:
     core_type = st.selectbox("Core Type", ["Paper", "Plastic"])
-with col_d3:
+with col_c3:
     core_thickness = st.number_input("Wall Thickness (mm)", min_value=0.0)
-with col_d4:
-    winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
 st.markdown("---")
 
@@ -205,10 +216,12 @@ job_data = {
     "Artwork Status": artwork,
     "Artwork No.": artwork_no, 
     "Roll Weight (kg)": roll_weight,
+    "Print Surface": print_position,
+    "Unwind Position": unwind_position,
     "Inner Core": inner_core,
     "Core Type": core_type,                 
     "Wall Thickness (mm)": core_thickness,  
-    "Winding Direction": winding_direction,
+    "Artwork Reference": artwork_reference,
     "Required Quantity": quantity,
     "Packaging": packaging,
     "Due Date": str(due_date),
