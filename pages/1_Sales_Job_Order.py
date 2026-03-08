@@ -6,26 +6,105 @@ from fpdf import FPDF
 
 # --- Functions for PDF Generation ---
 def create_pdf(data_dict):
-    pdf = FPDF()
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
     
     # Title
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Sales Job Order", ln=True, align='C')
-    pdf.ln(10)
+    pdf.cell(190, 10, "SALES JOB ORDER", 0, 1, 'C')
+    pdf.ln(5)
     
-    # Data Rows
-    for key, value in data_dict.items():
-        pdf.set_font("Arial", 'B', 12)
-        if key == "Remarks / Notes":
-            pdf.cell(0, 10, f"{key}:", border=0, ln=True)
-            pdf.set_font("Arial", '', 12)
-            pdf.multi_cell(0, 10, str(value), border=0)
-        else:
-            pdf.cell(60, 10, f"{key}:", border=0)
-            pdf.set_font("Arial", '', 12)
-            pdf.cell(0, 10, str(value), border=0, ln=True)
-            
+    def draw_section(title, fields_dict):
+        pdf.set_fill_color(200, 220, 255)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(190, 8, title, 1, 1, 'L', True)
+        pdf.set_font("Arial", '', 9)
+        for label, val in fields_dict.items():
+            if val is not None and str(val).strip() != "":
+                pdf.set_fill_color(245, 245, 245)
+                if label == "Remarks / Notes" or label == "Delivery Address" or label == "Head Office Address":
+                    pdf.cell(190, 7, f"{label}:", 1, 1, 'L', True)
+                    pdf.multi_cell(190, 7, str(val), 1, 'L')
+                else:
+                    pdf.cell(60, 7, f"{label}:", 1, 0, 'L', True)
+                    pdf.cell(130, 7, str(val), 1, 1, 'L')
+        pdf.ln(3)
+
+    # Grouping Data for PDF
+    cust_info = {
+        "Date": data_dict.get("Date"),
+        "Job Order No": data_dict.get("Job Order No"),
+        "Customer Name": data_dict.get("Customer Name"),
+        "Customer ID": data_dict.get("Customer ID"),
+        "Customer PO#": data_dict.get("Customer PO#"),
+        "Sales PO#": data_dict.get("Sales PO#"),
+        "Head Office Address": data_dict.get("Head Office Address")
+    }
+    
+    prod_specs = {
+        "Product Type": data_dict.get("Product Type"),
+        "Product Code": data_dict.get("Product Code"),
+        "Material Type": data_dict.get("Material Type"),
+        "Density (g/cm3)": data_dict.get("Density (g/cm3)"),
+        "Label/Film Width (mm)": data_dict.get("Label/Film Width (mm)"),
+        "Repeat Length (mm)": data_dict.get("Repeat Length (mm)"),
+        "Thickness (u)": data_dict.get("Thickness (u)"),
+        "Colors": data_dict.get("Colors"),
+        "Color of Film": data_dict.get("Color of Film"),
+        "Artwork Status": data_dict.get("Artwork Status"),
+        "Artwork No.": data_dict.get("Artwork No.")
+    }
+    
+    dynamic_specs = {}
+    if data_dict.get("Product Type") == "OPP Label (Wrap Around)":
+        dynamic_specs = {
+            "Mother Roll Length (m)": data_dict.get("Mother Roll Length (m)"),
+            "Mother Roll Width (mm)": data_dict.get("Mother Roll Width (mm)"),
+            "No. of Lines": data_dict.get("No. of Lines"),
+            "Target Edge Trim (mm)": data_dict.get("Target Edge Trim (mm)"),
+            "Total Waste (mm)": data_dict.get("Total Waste (mm)"),
+            "Unused Waste (mm)": data_dict.get("Unused Waste (mm)"),
+            "Pcs/Roll": data_dict.get("Pcs/Roll"),
+            "Inner Core": data_dict.get("Inner Core"),
+            "Winding Direction": data_dict.get("Winding Direction")
+        }
+    elif data_dict.get("Product Type") == "Printed PE Shrink Film":
+        dynamic_specs = {
+            "Inner Core": data_dict.get("Inner Core"),
+            "Roll Weight (kg)": data_dict.get("Roll Weight (kg)"),
+            "Winding Direction": data_dict.get("Winding Direction")
+        }
+    elif data_dict.get("Product Type") == "Printed LDPE Bag":
+        dynamic_specs = {
+            "Bag Length (mm)": data_dict.get("Bag Length (mm)"),
+            "Bottom Gusset (mm)": data_dict.get("Bottom Gusset (mm)")
+        }
+
+    del_info = {
+        "Required Quantity": data_dict.get("Required Quantity"),
+        "Packaging": data_dict.get("Packaging"),
+        "Due Date": data_dict.get("Due Date"),
+        "Delivery City": data_dict.get("Delivery City"),
+        "Delivery Address": data_dict.get("Delivery Address"),
+        "Remarks / Notes": data_dict.get("Remarks / Notes")
+    }
+
+    # Draw Sections
+    draw_section("CUSTOMER INFORMATION", cust_info)
+    draw_section("PRODUCT SPECIFICATIONS", prod_specs)
+    if dynamic_specs:
+        draw_section("PRODUCTION DETAILS", dynamic_specs)
+    draw_section("QUANTITY, DELIVERY & NOTES", del_info)
+
+    # Approvals
+    pdf.set_fill_color(200, 220, 255)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(190, 8, "APPROVALS", 1, 1, 'C', True)
+    pdf.cell(47.5, 15, "Sales", 1, 0, 'C')
+    pdf.cell(47.5, 15, "Production", 1, 0, 'C')
+    pdf.cell(47.5, 15, "QC", 1, 0, 'C')
+    pdf.cell(47.5, 15, "Manager", 1, 1, 'C')
+        
     return pdf.output(dest='S').encode('latin-1')
 
 # --- Page configuration ---
@@ -48,11 +127,7 @@ with col3:
     po_number = st.text_input("Customer's PO#")
     sales_po = st.text_input("Sales PO#")
 
-col_addr1, col_addr2 = st.columns(2)
-with col_addr1:
-    head_office_address = st.text_input("Company Head Office Address")
-with col_addr2:
-    delivery_address = st.text_input("Delivery Address")
+head_office_address = st.text_input("Company Head Office Address")
 
 st.markdown("---")
 
@@ -109,7 +184,7 @@ if product_type != "Select Product Type...":
         with col_d1:
             inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
         with col_d2:
-             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
+            winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
         # --- SMART CALCULATOR & VALIDATION SECTION ---
         st.markdown("#### 🧮 Smart Web & Production Calculator")
@@ -194,11 +269,9 @@ if product_type != "Select Product Type...":
         due_date = st.date_input("Due Date of Order", datetime.date.today())
     with col_q4:
         delivery_city = st.text_input("Delivery City") 
-
-    # ADDED: Remarks / Notes Section
-    st.markdown("---")
-    st.subheader("📝 4. Additional Notes")
-    notes = st.text_area("Remarks / Notes", placeholder="Enter any specific notes or instructions here...")
+        
+    delivery_address = st.text_input("Delivery Address")
+    notes = st.text_area("Remarks / Notes")
 
     # --- Data Collection for Export ---
     job_data = {
@@ -225,7 +298,7 @@ if product_type != "Select Product Type...":
         "Required Quantity": quantity,
         "Packaging": packaging,
         "Due Date": str(due_date),
-        "Remarks / Notes": notes # Added to data dictionary
+        "Remarks / Notes": notes
     }
     
     # Add dynamic fields for printing
@@ -253,7 +326,7 @@ if product_type != "Select Product Type...":
     
     # --- Action Buttons Row ---
     st.subheader("🎯 Actions")
-    btn_col1, btn_col2 = st.columns(2) # Changed from 3 columns to 2
+    btn_col1, btn_col2 = st.columns(2)
     
     with btn_col1:
         if st.button("💾 Save & Send to Production", type="primary", use_container_width=True):
