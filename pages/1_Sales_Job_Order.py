@@ -11,8 +11,12 @@ def create_pdf(data_dict):
     
     # Title
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(190, 10, "Sales Job Order For Printed Item", ln=True, align='C')
-    pdf.ln(10)
+    pdf.cell(0, 10, "Sales Job Order For Printed Item", ln=True, align='C')
+    pdf.ln(5)
+    
+    # Helper function to prevent UnicodeEncodeError in FPDF
+    def safe_txt(txt):
+        return str(txt).encode('latin-1', 'replace').decode('latin-1')
     
     # Fields that require a full line
     full_width_fields = ["Head Office Address", "Delivery Address", "Remarks / Notes"]
@@ -20,38 +24,53 @@ def create_pdf(data_dict):
     items = list(data_dict.items())
     i = 0
     
-    # Loop to print 2 items per row with borders (تسطيرة)
+    # Loop to print 2 items per row with borders
     while i < len(items):
         key1, val1 = items[i]
         
         # If the field is a long text, give it a full row
         if key1 in full_width_fields:
-            pdf.set_font("Arial", 'B', 11)
-            pdf.cell(190, 8, f"{key1}:", border=1, ln=True)
-            pdf.set_font("Arial", '', 11)
-            pdf.multi_cell(190, 8, str(val1), border=1)
-            pdf.ln(2)
+            pdf.set_font("Arial", 'B', 10)
+            pdf.cell(190, 8, safe_txt(f"{key1}:"), border=1, ln=True, fill=False)
+            pdf.set_font("Arial", '', 10)
+            pdf.multi_cell(190, 8, safe_txt(val1), border=1)
+            pdf.ln(1)
             i += 1
             continue
         
         # Column 1
         pdf.set_font("Arial", 'B', 10)
-        pdf.cell(50, 8, f"{key1}:", border=1)
+        pdf.cell(45, 8, safe_txt(f"{key1}:"), border=1)
         pdf.set_font("Arial", '', 10)
-        pdf.cell(45, 8, str(val1)[:35], border=1)
+        pdf.cell(50, 8, safe_txt(val1)[:40], border=1)
         
-        # Column 2 (Check if there is a next item and it's not a full-width field)
+        # Column 2
         if i + 1 < len(items) and items[i+1][0] not in full_width_fields:
             key2, val2 = items[i+1]
             pdf.set_font("Arial", 'B', 10)
-            pdf.cell(50, 8, f"{key2}:", border=1)
+            pdf.cell(45, 8, safe_txt(f"{key2}:"), border=1)
             pdf.set_font("Arial", '', 10)
-            pdf.cell(45, 8, str(val2)[:35], border=1, ln=True)
+            pdf.cell(50, 8, safe_txt(val2)[:40], border=1, ln=True)
             i += 2
         else:
             # End the line with an empty bordered cell to keep the grid perfectly aligned
             pdf.cell(95, 8, "", border=1, ln=True)
             i += 1
+            
+    # --- Approvals / Signature Boxes ---
+    pdf.ln(8)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(47.5, 8, "Sales", border=1, align='C', fill=True)
+    pdf.cell(47.5, 8, "Production", border=1, align='C', fill=True)
+    pdf.cell(47.5, 8, "QC", border=1, align='C', fill=True)
+    pdf.cell(47.5, 8, "Manager", border=1, align='C', fill=True, ln=True)
+    
+    # Empty boxes for signing
+    pdf.cell(47.5, 20, "", border=1)
+    pdf.cell(47.5, 20, "", border=1)
+    pdf.cell(47.5, 20, "", border=1)
+    pdf.cell(47.5, 20, "", border=1, ln=True)
             
     return pdf.output(dest='S').encode('latin-1')
 
@@ -106,9 +125,9 @@ if product_type != "Select Product Type...":
     with col_s2:
         material_type = st.selectbox("Material Type", ["BOPP", "PETG", "PE", "Other"])
     with col_s3:
-        density = st.selectbox("Density (g/cm³)", [0.91, 0.92, 1.40]) 
+        density = st.selectbox("Density (g/cm3)", [0.91, 0.92, 1.40]) 
     with col_s4:
-        thickness = st.selectbox("Thickness (µ)", [30, 35, 38, 40])
+        thickness = st.selectbox("Thickness (u)", [30, 35, 38, 40])
 
     # Row 2: Dimensions and Colors
     col_s5, col_s6, col_s7, col_s8 = st.columns(4)
@@ -136,7 +155,7 @@ if product_type != "Select Product Type...":
         with col_d1:
             inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"])
         with col_d2:
-             winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
+            winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
         # --- SMART CALCULATOR & VALIDATION SECTION ---
         st.markdown("#### 🧮 Smart Web & Production Calculator")
@@ -222,7 +241,7 @@ if product_type != "Select Product Type...":
     with col_q4:
         delivery_city = st.text_input("Delivery City") 
 
-    # ADDED: Remarks / Notes Section
+    # Remarks / Notes Section
     st.markdown("---")
     st.subheader("📝 4. Additional Notes")
     notes = st.text_area("Remarks / Notes", placeholder="Enter any specific notes or instructions here...")
@@ -252,18 +271,12 @@ if product_type != "Select Product Type...":
         "Required Quantity": quantity,
         "Packaging": packaging,
         "Due Date": str(due_date),
-        "Remarks / Notes": notes # Added to data dictionary
+        "Remarks / Notes": notes
     }
     
     # Add dynamic fields for printing
     if product_type == "OPP Label (Wrap Around)":
-        job_data["Mother Roll Length (m)"] = mother_roll_length
-        job_data["Mother Roll Width (mm)"] = mother_roll_width
-        job_data["No. of Lines"] = no_of_lines
-        job_data["Target Edge Trim (mm)"] = edge_trim
-        job_data["Total Waste (mm)"] = waste_by_mm
-        job_data["Unused Waste (mm)"] = unused_waste
-        job_data["Pcs/Roll"] = pcs_per_roll
+        # Calculator data intentionally EXCLUDED from job_data to prevent it from appearing on PDF
         job_data["Inner Core"] = inner_core
         job_data["Winding Direction"] = winding_direction
         
