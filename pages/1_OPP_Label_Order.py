@@ -3,19 +3,24 @@ import datetime
 import pandas as pd
 import io
 from fpdf import FPDF
-
-# --- استدعاء ملف القفل الذكي ---
-import auth
+import sys
+import os
 
 # --- Page configuration ---
 st.set_page_config(page_title="OPP Label Order", page_icon="📝", layout="wide")
 
-# 🛑 إيقاف تشغيل الصفحة إذا لم يقم بتسجيل الدخول
+# --- Authentication Setup ---
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+import auth
+
 if not auth.check_password():
     st.stop()
 
+# --- Version Control ---
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 02 - 2026-03-11</div>", unsafe_allow_html=True)
+
 # ==========================================
-# 🚀 بداية كود النظام الأساسي
+# --- Main System Code Starts Here ---
 # ==========================================
 
 # --- Functions for PDF Generation ---
