@@ -4,6 +4,20 @@ import pandas as pd
 import io
 from fpdf import FPDF
 
+# --- استدعاء ملف القفل الذكي ---
+import auth
+
+# --- Page configuration ---
+st.set_page_config(page_title="OPP Label Order", page_icon="📝", layout="wide")
+
+# 🛑 إيقاف تشغيل الصفحة إذا لم يقم بتسجيل الدخول
+if not auth.check_password():
+    st.stop()
+
+# ==========================================
+# 🚀 بداية كود النظام الأساسي
+# ==========================================
+
 # --- Functions for PDF Generation ---
 def create_pdf(data_dict):
     pdf = FPDF()
@@ -74,9 +88,6 @@ def create_pdf(data_dict):
             
     return pdf.output(dest='S').encode('latin-1')
 
-# --- Page configuration ---
-st.set_page_config(page_title="OPP Label Order", page_icon="📝", layout="wide")
-
 st.title("📝 Create New Job Order - OPP Label (Wrap Around)")
 st.markdown("---")
 
@@ -126,7 +137,6 @@ with col_s5:
 with col_s6:
     repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0)
 with col_s7:
-    # --- MODIFIED: Color of Film Dropdown ---
     color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"])
     if color_choice == "Other":
         color_of_film = st.text_input("Specify Color:")
@@ -151,7 +161,6 @@ col_w1, col_w2 = st.columns(2)
 with col_w1:
     print_position = st.selectbox("Print Surface", ["Reverse Print", "Surface Print"])
 with col_w2:
-    # --- ADDED: Final Format Selection ---
     final_format = st.selectbox("Final Product Format", ["Roll", "Cut (Pieces)"])
 
 col_d1, col_d2, col_d3, col_d4 = st.columns(4)
@@ -167,7 +176,6 @@ with col_d4:
 # --- SMART CALCULATOR & VALIDATION SECTION ---
 st.markdown("#### 🧮 Smart Web & Production Calculator")
 
-# --- MODIFIED: Added No. of Rolls to the calculator layout ---
 col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
 with col_calc1:
     mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
@@ -214,7 +222,6 @@ if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
     else:
         st.info(f"✅ **PERFECT FIT:** Required width exactly matches the Mother Roll.")
 
-# --- MODIFIED: Included no_of_rolls in total production calculation ---
 if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0 and no_of_rolls > 0:
     total_labels_calculated = pcs_per_roll * no_of_lines * no_of_rolls
     st.success(f"**💡 Production Estimate for {no_of_rolls} Mother Roll(s):** Total Exact Quantity: **{total_labels_calculated:,}** PCS")
@@ -267,11 +274,11 @@ job_data = {
     "Repeat Length (mm)": repeat_length, 
     "Thickness (u)": thickness,
     "Colors": colors_no,
-    "Color of Film": color_of_film, # Now pulling correctly from the dropdown/other logic
+    "Color of Film": color_of_film, 
     "Artwork Status": artwork,
     "Artwork No.": artwork_no,
     "Print Surface": print_position,
-    "Final Format": final_format, # --- ADDED: Included in PDF export ---
+    "Final Format": final_format, 
     "Inner Core": inner_core,
     "Core Type": core_type,                 
     "Wall Thickness (mm)": core_thickness,  
