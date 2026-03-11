@@ -77,18 +77,18 @@ def create_pdf(data_dict):
 # --- Page configuration ---
 st.set_page_config(page_title="OPP Label Order", page_icon="📝", layout="wide")
 
-# --- MODIFIED: تقسيم المنطقة العلوية لإضافة الأيقونة على اليمين ---
+# --- تقسيم المنطقة العلوية لإضافة الأيقونة على اليمين ---
 col_title, col_icon = st.columns([5, 1]) 
 
 with col_title:
     st.title("📝 Create New Job Order - OPP Label (Wrap Around)")
 
 with col_icon:
-    # رسم مربع أنيق ووضع أيقونة (رول ليبل) داخله
+    # --- MODIFIED: تم تحديث رابط الأيقونة لتمثل (Wrap Around Label) بدقة ---
     st.markdown(
         """
         <div style="border: 2px solid #ddd; padding: 10px; border-radius: 10px; text-align: center; background-color: white;">
-            <img src="https://cdn-icons-png.flaticon.com/512/3254/3254093.png" width="70">
+            <img src="https://cdn-icons-png.flaticon.com/512/10188/10188448.png" width="70">
         </div>
         """, 
         unsafe_allow_html=True
