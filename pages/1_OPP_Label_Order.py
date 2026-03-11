@@ -84,11 +84,15 @@ with col_title:
     st.title("📝 Create New Job Order - OPP Label (Wrap Around)")
 
 with col_icon:
-    # --- MODIFIED: تم تحديث رابط الأيقونة لتمثل (Wrap Around Label) بدقة ---
+    # --- MODIFIED: رسم SVG مخصص وواضح لـ (Wrap Around Label) لتجنب أي سوء فهم ---
     st.markdown(
         """
         <div style="border: 2px solid #ddd; padding: 10px; border-radius: 10px; text-align: center; background-color: white;">
-            <img src="https://cdn-icons-png.flaticon.com/512/10188/10188448.png" width="70">
+            <svg width="70" height="70" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg">
+                <rect x="15" y="10" width="40" height="50" rx="5" ry="5" fill="#f0f0f0" stroke="#ddd" stroke-width="2"/>
+                <rect x="15" y="25" width="40" height="20" fill="#313131" fill-opacity="0.8" rx="2" ry="2"/>
+                <text x="35" y="38" font-family="Arial" font-size="10" fill="#fff" text-anchor="middle">LABEL</text>
+            </svg>
         </div>
         """, 
         unsafe_allow_html=True
@@ -227,6 +231,7 @@ if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
 
 if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0 and no_of_rolls > 0:
     total_labels_calculated = pcs_per_roll * no_of_lines * no_of_rolls
+    # --- MODIFIED: Included no_of_rolls in total production calculation success message ---
     st.success(f"**💡 Production Estimate for {no_of_rolls} Mother Roll(s):** Total Exact Quantity: **{total_labels_calculated:,}** PCS")
 
 st.markdown("---")
