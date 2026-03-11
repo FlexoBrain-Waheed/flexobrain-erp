@@ -126,7 +126,12 @@ with col_s5:
 with col_s6:
     repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0)
 with col_s7:
-    color_of_film = st.text_input("Color of Film", value="Transparent")
+    # --- MODIFIED: Color of Film Dropdown ---
+    color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"])
+    if color_choice == "Other":
+        color_of_film = st.text_input("Specify Color:")
+    else:
+        color_of_film = color_choice
 with col_s8:
     colors_no = st.number_input("No. of Colors in Printing", min_value=1, max_value=10)
 
@@ -140,7 +145,6 @@ with col_s10:
 # 3. Dynamic Section based on OPP
 st.markdown("### 🔄 Specific Specs for: OPP Label")
 
-# --- MODIFIED: Print, Core & Winding Specifications Section ---
 st.markdown("#### 🧻 Print, Core & Winding Specifications")
 
 col_w1, col_w2 = st.columns(2)
@@ -160,9 +164,12 @@ with col_d4:
 # --- SMART CALCULATOR & VALIDATION SECTION ---
 st.markdown("#### 🧮 Smart Web & Production Calculator")
 
-col_calc1, col_calc2, col_calc3 = st.columns(3)
+# --- MODIFIED: Added No. of Rolls to the calculator layout ---
+col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
 with col_calc1:
     mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
+with col_calc_rolls:
+    no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=1)
 with col_calc2:
     mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0)
 with col_calc3:
@@ -204,9 +211,10 @@ if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
     else:
         st.info(f"✅ **PERFECT FIT:** Required width exactly matches the Mother Roll.")
 
-if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0:
-    total_labels_calculated = pcs_per_roll * no_of_lines
-    st.success(f"**💡 Production Estimate for 1 Mother Roll:** Total Exact Quantity: **{total_labels_calculated:,}** PCS")
+# --- MODIFIED: Included no_of_rolls in total production calculation ---
+if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0 and no_of_rolls > 0:
+    total_labels_calculated = pcs_per_roll * no_of_lines * no_of_rolls
+    st.success(f"**💡 Production Estimate for {no_of_rolls} Mother Roll(s):** Total Exact Quantity: **{total_labels_calculated:,}** PCS")
 
 st.markdown("---")
 
@@ -256,10 +264,9 @@ job_data = {
     "Repeat Length (mm)": repeat_length, 
     "Thickness (u)": thickness,
     "Colors": colors_no,
-    "Color of Film": color_of_film,
+    "Color of Film": color_of_film, # Now pulling correctly from the dropdown/other logic
     "Artwork Status": artwork,
     "Artwork No.": artwork_no,
-    # --- MODIFIED: Removed Calculator data from PDF export ---
     "Print Surface": print_position,
     "Inner Core": inner_core,
     "Core Type": core_type,                 
