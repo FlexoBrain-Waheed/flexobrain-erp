@@ -150,6 +150,9 @@ st.markdown("#### 🧻 Print, Core & Winding Specifications")
 col_w1, col_w2 = st.columns(2)
 with col_w1:
     print_position = st.selectbox("Print Surface", ["Reverse Print", "Surface Print"])
+with col_w2:
+    # --- ADDED: Final Format Selection ---
+    final_format = st.selectbox("Final Product Format", ["Roll", "Cut (Pieces)"])
 
 col_d1, col_d2, col_d3, col_d4 = st.columns(4)
 with col_d1:
@@ -268,6 +271,7 @@ job_data = {
     "Artwork Status": artwork,
     "Artwork No.": artwork_no,
     "Print Surface": print_position,
+    "Final Format": final_format, # --- ADDED: Included in PDF export ---
     "Inner Core": inner_core,
     "Core Type": core_type,                 
     "Wall Thickness (mm)": core_thickness,  
