@@ -77,7 +77,23 @@ def create_pdf(data_dict):
 # --- Page configuration ---
 st.set_page_config(page_title="OPP Label Order", page_icon="📝", layout="wide")
 
-st.title("📝 Create New Job Order - OPP Label (Wrap Around)")
+# --- MODIFIED: تقسيم المنطقة العلوية لإضافة الأيقونة على اليمين ---
+col_title, col_icon = st.columns([5, 1]) 
+
+with col_title:
+    st.title("📝 Create New Job Order - OPP Label (Wrap Around)")
+
+with col_icon:
+    # رسم مربع أنيق ووضع أيقونة (رول ليبل) داخله
+    st.markdown(
+        """
+        <div style="border: 2px solid #ddd; padding: 10px; border-radius: 10px; text-align: center; background-color: white;">
+            <img src="https://cdn-icons-png.flaticon.com/512/3254/3254093.png" width="70">
+        </div>
+        """, 
+        unsafe_allow_html=True
+    )
+
 st.markdown("---")
 
 # 1. Customer Information
@@ -126,7 +142,6 @@ with col_s5:
 with col_s6:
     repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0)
 with col_s7:
-    # --- MODIFIED: Color of Film Dropdown ---
     color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"])
     if color_choice == "Other":
         color_of_film = st.text_input("Specify Color:")
@@ -164,7 +179,6 @@ with col_d4:
 # --- SMART CALCULATOR & VALIDATION SECTION ---
 st.markdown("#### 🧮 Smart Web & Production Calculator")
 
-# --- MODIFIED: Added No. of Rolls to the calculator layout ---
 col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
 with col_calc1:
     mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
@@ -211,7 +225,6 @@ if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
     else:
         st.info(f"✅ **PERFECT FIT:** Required width exactly matches the Mother Roll.")
 
-# --- MODIFIED: Included no_of_rolls in total production calculation ---
 if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0 and no_of_rolls > 0:
     total_labels_calculated = pcs_per_roll * no_of_lines * no_of_rolls
     st.success(f"**💡 Production Estimate for {no_of_rolls} Mother Roll(s):** Total Exact Quantity: **{total_labels_calculated:,}** PCS")
@@ -264,7 +277,7 @@ job_data = {
     "Repeat Length (mm)": repeat_length, 
     "Thickness (u)": thickness,
     "Colors": colors_no,
-    "Color of Film": color_of_film, # Now pulling correctly from the dropdown/other logic
+    "Color of Film": color_of_film, 
     "Artwork Status": artwork,
     "Artwork No.": artwork_no,
     "Print Surface": print_position,
