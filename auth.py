@@ -15,7 +15,7 @@ def show_smart_sidebar():
     
     # 2. Build the custom, professional sidebar
     with st.sidebar:
-        st.markdown("### 🏭 NexFlexo ERP")
+        st.markdown("### 🏭 FlexoBrain")
         st.page_link("app.py", label="Main Hub", icon="🏠")
         
         role = st.session_state.get("role")
