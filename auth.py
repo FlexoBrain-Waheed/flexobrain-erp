@@ -3,11 +3,18 @@ import streamlit as st
 def show_smart_sidebar():
     """Hides the default sidebar and builds a role-based custom sidebar"""
     
-    # 1. Hide the default Streamlit sidebar menu using CSS
+    # 1. Hide default elements using CSS for a clean ERP look
     st.markdown(
         """
         <style>
+            /* Hide the default Streamlit sidebar menu */
             [data-testid="stSidebarNav"] {display: none !important;}
+            
+            /* Hide the top header (GitHub icon, Share, Star, Menu) */
+            header {visibility: hidden !important;}
+            
+            /* Hide the default Streamlit footer */
+            footer {visibility: hidden !important;}
         </style>
         """,
         unsafe_allow_html=True,
