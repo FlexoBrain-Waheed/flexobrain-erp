@@ -2,7 +2,7 @@ import streamlit as st
 import auth
 
 # --- Page Configuration ---
-st.set_page_config(page_title="NexFlexo Portal", page_icon="🏭", layout="centered")
+st.set_page_config(page_title="FlexoBrain Portal", page_icon="🏭", layout="centered")
 
 # --- Authentication Check ---
 # This will trigger the login screen if the user hasn't entered a valid password
