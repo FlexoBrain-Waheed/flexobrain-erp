@@ -1,22 +1,35 @@
 import streamlit as st
+import auth
 
-# Main page configuration
-st.set_page_config(page_title="FlexoBrain ERP", page_icon="🧠", layout="wide")
+# --- Page Configuration ---
+st.set_page_config(page_title="NexFlexo Portal", page_icon="🏭", layout="centered")
 
-# System welcome and title
-st.title("🧠 FlexoBrain ERP System")
+# --- Authentication Check ---
+# This will trigger the login screen if the user hasn't entered a valid password
+if not auth.check_password():
+    st.stop()
+
+# --- Main Portal UI ---
+st.title("🏭 Job Orders Hub")
 st.markdown("---")
 
-st.markdown("""
-### Welcome to the Future of Flexo Printing Management!
-This system is designed using Clean Architecture to manage:
-* 📝 **Sales & Production Orders**
-* ⚙️ **Machine Configurations**
-* 🎨 **Anilox Library & Inventory**
-* 📊 **Live Production Tracking (IoT)**
+st.markdown("### 📋 Please select the type of job order:")
+st.write("") # Empty space for layout breathing room
 
-👈 **Please use the sidebar menu to navigate through the modules.**
-""")
+# Create 3 columns for the navigation buttons
+col1, col2, col3 = st.columns(3)
 
-# You can later add quick statistics here (e.g., pending orders, machine status, etc.)
-st.info("System is Online and Ready. 🚀")
+with col1:
+    st.info("🏷️ **OPP Labels**")
+    # Button linking directly to the OPP page
+    st.page_link("pages/1_OPP_Label_Order.py", label="Open OPP Form", icon="➡️")
+
+with col2:
+    st.success("📦 **Shrink Films**")
+    # Button linking directly to the Shrink Film page
+    st.page_link("pages/2_Shrink_Film_Order.py", label="Open Shrink Form", icon="➡️")
+
+with col3:
+    st.warning("🛍️ **LDPE Bags**")
+    # Button linking directly to the LDPE Bag page
+    st.page_link("pages/3_LDPE_Bag_Order.py", label="Open LDPE Form", icon="➡️")
