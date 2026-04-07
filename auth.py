@@ -1,31 +1,39 @@
 import streamlit as st
 
 def check_password():
-    """Returns True if the user had entered the correct password."""
+    """Returns `True` if the user had the correct password."""
+
     def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        if st.session_state["password"] == st.secrets["password"]:
+        # Check for admin password
+        if st.session_state["password"] == st.secrets["passwords"]["admin"]:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Delete password from session state for security
+            st.session_state["role"] = "admin"
+            del st.session_state["password"]  # Don't store password
+            
+        # Check for orders password
+        elif st.session_state["password"] == st.secrets["passwords"]["orders"]:
+            st.session_state["password_correct"] = True
+            st.session_state["role"] = "orders"
+            del st.session_state["password"]  # Don't store password
+            
         else:
             st.session_state["password_correct"] = False
 
     if "password_correct" not in st.session_state:
-        # First time opening the app
-        st.markdown("<h1 style='text-align: center; margin-top: 50px;'>🔒 3P Packaging Factory ERP</h1>", unsafe_allow_html=True)
-        st.markdown("<h3 style='text-align: center; color: gray;'>Please enter the password to access the system</h3>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.text_input("🔑 Password:", type="password", on_change=password_entered, key="password")
+        # First run, show input for password
+        st.text_input(
+            "🔒 Please enter your password:", type="password", on_change=password_entered, key="password"
+        )
         return False
+        
     elif not st.session_state["password_correct"]:
-        # If the password is wrong
-        st.markdown("<h1 style='text-align: center; margin-top: 50px;'>🔒 3P Packaging Factory ERP</h1>", unsafe_allow_html=True)
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.text_input("🔑 Password:", type="password", on_change=password_entered, key="password")
-            st.error("🚨 Incorrect password, please try again.")
+        # Password incorrect, show input + error
+        st.text_input(
+            "🔒 Please enter your password:", type="password", on_change=password_entered, key="password"
+        )
+        st.error("❌ Incorrect password")
         return False
+        
     else:
-        # Password is correct
+        # Password correct
         return True
