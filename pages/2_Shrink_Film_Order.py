@@ -3,6 +3,28 @@ import datetime
 import pandas as pd
 import io
 from fpdf import FPDF
+import sys
+import os
+from pathlib import Path
+
+# --- 1. Page Configuration MUST be the first Streamlit command ---
+st.set_page_config(page_title="Shrink Film Order", page_icon="📜", layout="wide")
+
+# --- 2. Authentication Setup (The Lock) ---
+# Ensure Python can find the auth.py file in the main folder
+root_dir = str(Path(__file__).parent.parent)
+if root_dir not in sys.path:
+    sys.path.append(root_dir)
+
+import auth
+
+# Stop the page if the user is not logged in or doesn't have a valid password
+if not auth.check_password():
+    st.stop()
+
+# ==========================================
+# --- Main System Code Starts Here ---
+# ==========================================
 
 # --- Functions for PDF Generation ---
 def create_pdf(data_dict):
@@ -74,9 +96,7 @@ def create_pdf(data_dict):
             
     return pdf.output(dest='S').encode('latin-1')
 
-# --- Page configuration ---
-st.set_page_config(page_title="Shrink Film Order", page_icon="📜", layout="wide")
-
+# --- Page Layout & UI ---
 st.title("📜 Create New Job Order - Printed PE Shrink Film")
 st.markdown("---")
 
@@ -145,12 +165,11 @@ with col_s10:
 st.markdown("### 🔄 Shrink Film Specifics")
 roll_weight = st.number_input("Roll Weight (kg)", min_value=0.0)
 
-# --- MODIFIED: Print, Winding & Core Specifications Section ---
+# Print, Winding & Core Specifications Section
 st.markdown("#### 🧻 Print, Winding & Core Specifications")
 
 col_w1, col_w2, col_w3 = st.columns(3)
 with col_w1:
-    # --- MODIFIED: Removed "Inside" and "Outside" ---
     print_position = st.selectbox("Print Surface", ["Reverse Print", "Surface Print"])
 with col_w2:
     unwind_position = st.selectbox("Unwind Position (Chart 1-8)", [
