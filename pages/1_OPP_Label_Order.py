@@ -7,6 +7,7 @@ import os
 from fpdf import FPDF
 import sys
 from pathlib import Path
+from PIL import Image  # 🆕 استدعاء مكتبة معالجة الصور
 
 # --- Page configuration ---
 st.set_page_config(page_title="OPP Label Order", page_icon="📝", layout="wide")
@@ -22,7 +23,7 @@ if not auth.check_password():
     st.stop()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 04 - 2026-04-08</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 05 - 2026-04-08</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Main System Code Starts Here ---
@@ -81,14 +82,15 @@ def create_pdf(data_dict, image_file=None):
     # --- Section 3: Print & Dimensions ---
     section_header("3. Print & Dimensions")
     row_2_cols("Label Width (mm)", data_dict.get("Label/Film Width (mm)"), "Repeat Length (mm)", data_dict.get("Repeat Length (mm)"))
-    row_2_cols("Print Surface", data_dict.get("Print Surface"), "No. of Colors", data_dict.get("Colors"))
+    row_2_cols("No. of Colors", data_dict.get("Colors"), "Film Color", data_dict.get("Color of Film"))
     row_2_cols("Artwork Status", data_dict.get("Artwork Status"), "Artwork No.", data_dict.get("Artwork No."))
     pdf.ln(2)
 
-    # --- Section 4: Winding & Core ---
-    section_header("4. Winding & Core")
+    # --- Section 4: Winding & Core (تم إضافة سُمك القلب هنا) ---
+    section_header("4. Print, Winding & Core")
+    row_2_cols("Print Surface", data_dict.get("Print Surface"), "Final Format", data_dict.get("Final Format"))
     row_2_cols("Inner Core", data_dict.get("Inner Core"), "Core Type", data_dict.get("Core Type"))
-    row_2_cols("Winding Direction", data_dict.get("Winding Direction"), "Final Format", data_dict.get("Final Format"))
+    row_2_cols("Wall Thickness (mm)", data_dict.get("Wall Thickness (mm)"), "Winding Direction", data_dict.get("Winding Direction"))
     pdf.ln(2)
 
     # --- Section 5: Quantity & Delivery ---
@@ -111,23 +113,26 @@ def create_pdf(data_dict, image_file=None):
     pdf.cell(47.5, 15, "", border=1)
     pdf.cell(47.5, 15, "", border=1, ln=True)
 
-    # --- PAGE 2: Attached Design ---
+    # --- PAGE 2: Attached Design (معالجة الصور القوية) ---
     if image_file is not None:
         try:
-            # Save uploaded image to a temporary file for FPDF to read
+            # 🆕 فتح الصورة باستخدام Pillow وتحويلها إلى RGB لضمان التوافق التام وإزالة أي شفافية (PNG)
+            img = Image.open(image_file).convert('RGB')
+            
+            # إنشاء ملف مؤقت بصيغة JPG لتستطيع FPDF قراءته
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-                tmp_file.write(image_file.getvalue())
                 tmp_path = tmp_file.name
+                img.save(tmp_path, format="JPEG")
 
             pdf.add_page()
             pdf.set_font("Arial", 'B', 16)
             pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
             pdf.ln(5)
             
-            # Place image (w=190 ensures it fits page width perfectly)
+            # وضع الصورة (w=190 يجعلها تملأ عرض الصفحة بشكل ممتاز)
             pdf.image(tmp_path, x=10, y=30, w=190)
             
-            # Cleanup temp file
+            # تنظيف السيرفر من الملف المؤقت
             os.remove(tmp_path)
         except Exception as e:
             pdf.add_page()
