@@ -7,10 +7,10 @@ import os
 from fpdf import FPDF
 import sys
 from pathlib import Path
-from PIL import Image  # 🆕 استدعاء مكتبة معالجة الصور
+from PIL import Image
 
 # --- Page configuration ---
-st.set_page_config(page_title="OPP Label Order", page_icon="📝", layout="wide")
+st.set_page_config(page_title="BOPP Label Order", page_icon="📝", layout="wide")
 
 # --- Authentication Setup ---
 root_dir = str(Path(__file__).parent.parent)
@@ -23,20 +23,33 @@ if not auth.check_password():
     st.stop()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 05 - 2026-04-08</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 07 - 2026-04-08</div>", unsafe_allow_html=True)
 
 # ==========================================
-# --- Main System Code Starts Here ---
+# --- Auto-generate Job Order Number Logic ---
 # ==========================================
+if 'last_sequence' not in st.session_state:
+    st.session_state.last_sequence = {}
 
-# --- Functions for PDF Generation (Structured & 2 Pages) ---
+today_str = datetime.date.today().strftime("%Y%m%d")
+seq_key = f"BOPP_{today_str}"
+
+if seq_key not in st.session_state.last_sequence:
+    st.session_state.last_sequence[seq_key] = 1
+
+current_seq = st.session_state.last_sequence[seq_key]
+auto_job_order_no = f"BOPP-{today_str}-{current_seq:03d}"
+
+# ==========================================
+# --- Functions for PDF Generation ---
+# ==========================================
 def create_pdf(data_dict, image_file=None):
     pdf = FPDF()
     pdf.add_page()
     
-    # Title
+    # Title 
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Sales Job Order - OPP Label", ln=True, align='C')
+    pdf.cell(0, 10, "Sales Job Order - BOPP Wrap Around Label", ln=True, align='C')
     pdf.ln(2)
     
     # Helper functions for structured layout
@@ -45,7 +58,7 @@ def create_pdf(data_dict, image_file=None):
         
     def section_header(title):
         pdf.set_font("Arial", 'B', 11)
-        pdf.set_fill_color(220, 220, 220) # Light Gray background
+        pdf.set_fill_color(220, 220, 220)
         pdf.cell(190, 8, safe_txt(title), border=1, ln=True, fill=True)
         
     def row_2_cols(k1, v1, k2, v2):
@@ -86,7 +99,7 @@ def create_pdf(data_dict, image_file=None):
     row_2_cols("Artwork Status", data_dict.get("Artwork Status"), "Artwork No.", data_dict.get("Artwork No."))
     pdf.ln(2)
 
-    # --- Section 4: Winding & Core (تم إضافة سُمك القلب هنا) ---
+    # --- Section 4: Winding & Core ---
     section_header("4. Print, Winding & Core")
     row_2_cols("Print Surface", data_dict.get("Print Surface"), "Final Format", data_dict.get("Final Format"))
     row_2_cols("Inner Core", data_dict.get("Inner Core"), "Core Type", data_dict.get("Core Type"))
@@ -113,13 +126,10 @@ def create_pdf(data_dict, image_file=None):
     pdf.cell(47.5, 15, "", border=1)
     pdf.cell(47.5, 15, "", border=1, ln=True)
 
-    # --- PAGE 2: Attached Design (معالجة الصور القوية) ---
+    # --- PAGE 2: Attached Design ---
     if image_file is not None:
         try:
-            # 🆕 فتح الصورة باستخدام Pillow وتحويلها إلى RGB لضمان التوافق التام وإزالة أي شفافية (PNG)
             img = Image.open(image_file).convert('RGB')
-            
-            # إنشاء ملف مؤقت بصيغة JPG لتستطيع FPDF قراءته
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
                 tmp_path = tmp_file.name
                 img.save(tmp_path, format="JPEG")
@@ -129,10 +139,7 @@ def create_pdf(data_dict, image_file=None):
             pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
             pdf.ln(5)
             
-            # وضع الصورة (w=190 يجعلها تملأ عرض الصفحة بشكل ممتاز)
             pdf.image(tmp_path, x=10, y=30, w=190)
-            
-            # تنظيف السيرفر من الملف المؤقت
             os.remove(tmp_path)
         except Exception as e:
             pdf.add_page()
@@ -141,96 +148,100 @@ def create_pdf(data_dict, image_file=None):
 
     return pdf.output(dest='S').encode('latin-1')
 
+# ==========================================
+# --- Main UI Starts Here ---
+# ==========================================
 
-st.title("📝 Create New Job Order - OPP Label")
+st.title("📝 Create New Job Order - BOPP Wrap Around Label")
 st.markdown("---")
 
 # 1. Customer Information
 st.subheader("👤 1. Customer Information")
 col1, col2, col3 = st.columns(3)
 with col1:
-    date = st.date_input("Date", datetime.date.today())
-    company_name = st.text_input("Company Name")
+    date = st.date_input("Date", datetime.date.today(), key="in_date")
+    company_name = st.text_input("Company Name", key="in_company")
 with col2:
-    job_order_no = st.text_input("Job Order No.", placeholder="Auto-generated on save", disabled=True) 
-    customer_id = st.text_input("Customer ID")
+    # Auto Job Order Number Display
+    job_order_no = st.text_input("Job Order No.", value=auto_job_order_no, disabled=True) 
+    customer_id = st.text_input("Customer ID", key="in_cust_id")
 with col3:
-    po_number = st.text_input("Customer's PO#")
-    sales_po = st.text_input("Sales PO#")
+    po_number = st.text_input("Customer's PO#", key="in_po")
+    sales_po = st.text_input("Sales PO#", key="in_sales_po")
 
 col_addr1, col_addr2 = st.columns(2)
 with col_addr1:
-    head_office_address = st.text_input("Company Head Office Address")
+    head_office_address = st.text_input("Company Head Office Address", key="in_addr1")
 with col_addr2:
-    delivery_address = st.text_input("Delivery Address")
+    delivery_address = st.text_input("Delivery Address", key="in_addr2")
 st.markdown("---")
 
 # 2. Product Specs 
 st.subheader("⚙️ 2. Product Specs")
-st.text_input("Product Type", value="OPP Label (Wrap Around)", disabled=True)
+st.text_input("Product Type", value="BOPP Wrap Around Label", disabled=True)
 
 col_s1, col_s2, col_s3, col_s4 = st.columns(4)
 with col_s1:
-    product_code = st.text_input("Product Code (SAP)")
+    product_code = st.text_input("Product Code (SAP)", key="in_prod_code")
 with col_s2:
-    material_type = st.selectbox("Material Type", ["BOPP", "PETG", "PE", "Other"])
+    material_type = st.selectbox("Material Type", ["BOPP", "PETG", "PE", "Other"], key="in_mat_type")
 with col_s3:
-    density = st.selectbox("Density (g/cm3)", [0.91, 0.92, 1.40]) 
+    density = st.selectbox("Density (g/cm3)", [0.91, 0.92, 1.40], key="in_density") 
 with col_s4:
-    thickness = st.selectbox("Thickness (u)", [30, 35, 38, 40])
+    thickness = st.selectbox("Thickness (u)", [30, 35, 38, 40], key="in_thick")
 
 col_s5, col_s6, col_s7, col_s8 = st.columns(4)
 with col_s5:
-    width = st.number_input("Label Width (mm)", min_value=0.0) 
+    width = st.number_input("Label Width (mm)", min_value=0.0, key="in_width") 
 with col_s6:
-    repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0)
+    repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0, key="in_repeat")
 with col_s7:
-    color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"])
-    color_of_film = st.text_input("Specify Color:") if color_choice == "Other" else color_choice
+    color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"], key="in_color_choice")
+    color_of_film = st.text_input("Specify Color:", key="in_spec_color") if color_choice == "Other" else color_choice
 with col_s8:
-    colors_no = st.number_input("No. of Colors in Printing", min_value=1, max_value=10)
+    colors_no = st.number_input("No. of Colors in Printing", min_value=1, max_value=10, key="in_color_no")
 
 col_s9, col_s10 = st.columns(2)
 with col_s9:
-    artwork = st.selectbox("Artwork Status", ["NEW", "REPEAT"])
+    artwork = st.selectbox("Artwork Status", ["NEW", "REPEAT"], key="in_art_stat")
 with col_s10:
-    artwork_no = st.text_input("Artwork No.") 
+    artwork_no = st.text_input("Artwork No.", key="in_art_no") 
 
 # 3. Dynamic Section
-st.markdown("### 🔄 Specific Specs for: OPP Label")
+st.markdown("### 🔄 Specific Specs for: BOPP Wrap Around Label")
 st.markdown("#### 🧻 Print, Core & Winding Specifications")
 
 col_w1, col_w2 = st.columns(2)
 with col_w1:
-    print_position = st.selectbox("Print Surface", ["Reverse Print", "Surface Print"])
+    print_position = st.selectbox("Print Surface", ["Reverse Print", "Surface Print"], key="in_print_surf")
 with col_w2:
-    final_format = st.selectbox("Final Product Format", ["Roll", "Cut (Pieces)"])
+    final_format = st.selectbox("Final Product Format", ["Roll", "Cut (Pieces)"], key="in_final_form")
 
 col_d1, col_d2, col_d3, col_d4 = st.columns(4)
 with col_d1:
-    inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"], index=1)
+    inner_core = st.selectbox("Inner Core Diameter", ["3 inch", "6 inch"], index=1, key="in_inner_core")
 with col_d2:
-    core_type = st.selectbox("Core Type", ["Paper", "Plastic"])
+    core_type = st.selectbox("Core Type", ["Paper", "Plastic"], key="in_core_type")
 with col_d3:
-    core_thickness = st.number_input("Wall Thickness (mm)", min_value=0.0)
+    core_thickness = st.number_input("Wall Thickness (mm)", min_value=0.0, key="in_core_thick")
 with col_d4:
-    winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
+    winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"], key="in_wind_dir")
 
 # Smart Calculator
 st.markdown("#### 🧮 Smart Web & Production Calculator")
 col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
 with col_calc1:
-    mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
+    mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0, key="in_mr_len")
 with col_calc_rolls:
-    no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=1)
+    no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=1, key="in_rolls")
 with col_calc2:
-    mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0)
+    mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0, key="in_mr_width")
 with col_calc3:
-    no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1)
+    no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1, key="in_lines")
     
 col_calc4, col_calc5, col_calc6, col_calc7 = st.columns(4)
 with col_calc4:
-    edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0, value=24)
+    edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0, value=24, key="in_edge")
 
 pcs_per_roll = int((mother_roll_length * 1000) / repeat_length) if mother_roll_length > 0 and repeat_length > 0 else 0
 with col_calc5:
@@ -263,24 +274,23 @@ st.markdown("---")
 # 4. Quantity, Delivery & Artwork Upload
 st.subheader("📦 3. Quantity, Delivery & Artwork")
 
-# NEW: Artwork Upload feature
-uploaded_design = st.file_uploader("🖼️ Upload Approved Design / Artwork (JPG or PNG)", type=["jpg", "jpeg", "png"])
+uploaded_design = st.file_uploader("🖼️ Upload Approved Design / Artwork (JPG or PNG)", type=["jpg", "jpeg", "png"], key="in_upload")
 if uploaded_design:
     st.success("Design attached successfully! It will appear on Page 2 of the PDF.")
 
 col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
 with col_q1:
-    quantity = st.number_input("Required Quantity by Customer", min_value=0) 
+    quantity = st.number_input("Required Quantity by Customer", min_value=0, key="in_qty") 
     if quantity > 0 and total_labels_calculated > 0 and quantity != total_labels_calculated:
         st.markdown(f"<p style='color:red; font-size:14px; font-weight:bold;'>🚨 WARNING: Requested Quantity ({quantity:,}) does NOT match Calculated Production ({total_labels_calculated:,})!</p>", unsafe_allow_html=True)
 with col_q2:
-    packaging = st.text_input("Packaging", value="Suitable / As Usual")
+    packaging = st.text_input("Packaging", value="Suitable / As Usual", key="in_pack")
 with col_q3:
-    due_date = st.date_input("Due Date of Order", datetime.date.today())
+    due_date = st.date_input("Due Date of Order", datetime.date.today(), key="in_due")
 with col_q4:
-    delivery_city = st.text_input("Delivery City") 
+    delivery_city = st.text_input("Delivery City", key="in_city") 
 
-notes = st.text_area("Remarks / Notes", placeholder="Enter any specific notes or instructions here...")
+notes = st.text_area("Remarks / Notes", placeholder="Enter any specific notes or instructions here...", key="in_notes")
 
 # Data Collection
 job_data = {
@@ -293,7 +303,7 @@ job_data = {
     "Head Office Address": head_office_address,
     "Delivery Address": delivery_address,
     "Delivery City": delivery_city, 
-    "Product Type": "OPP Label (Wrap Around)",
+    "Product Type": "BOPP Wrap Around Label", 
     "Product Code": product_code,
     "Material Type": material_type, 
     "Density (g/cm3)": density,     
@@ -320,20 +330,34 @@ job_data = {
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# Actions
+# Actions Row with 3 buttons
 st.subheader("🎯 Actions")
-btn_col1, btn_col2 = st.columns(2) 
+btn_col1, btn_col2, btn_col3 = st.columns(3) 
 
 with btn_col1:
     if st.button("💾 Save & Send to Production", type="primary", use_container_width=True):
-        st.success("OPP Job Order saved successfully! Ready for production review.")
+        # زيادة الترقيم التلقائي ليكون جاهزاً للطلب القادم
+        st.session_state.last_sequence[seq_key] += 1
+        
+        # إظهار رسائل النجاح والبالونات (Toasts)
+        st.success("✅ Job Order saved successfully! Ready for production review.")
+        st.toast("✅ تم حفظ أمر الإنتاج وإنشاء رقم تسلسلي جديد!", icon="🎉")
+        st.balloons()
         
 with btn_col2:
     pdf_file = create_pdf(job_data, image_file=uploaded_design)
     st.download_button(
         label="📄 Export to PDF",
         data=pdf_file,
-        file_name="OPP_Job_Order.pdf",
+        file_name=f"{job_order_no}.pdf", # تم جعل اسم الملف مطابقاً لرقم الأمر التلقائي
         mime="application/pdf",
         use_container_width=True
     )
+
+with btn_col3:
+    # زر إعادة تعيين النموذج (Reset Form)
+    if st.button("🗑️ Reset Form", use_container_width=True):
+        for key in list(st.session_state.keys()):
+            if key not in ["authenticated", "password", "last_sequence"]:
+                del st.session_state[key]
+        st.rerun()
