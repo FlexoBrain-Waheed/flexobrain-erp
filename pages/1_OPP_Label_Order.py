@@ -2,103 +2,146 @@ import streamlit as st
 import datetime
 import pandas as pd
 import io
+import tempfile
+import os
 from fpdf import FPDF
 import sys
-import os
+from pathlib import Path
 
 # --- Page configuration ---
 st.set_page_config(page_title="OPP Label Order", page_icon="📝", layout="wide")
 
 # --- Authentication Setup ---
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+root_dir = str(Path(__file__).parent.parent)
+if root_dir not in sys.path:
+    sys.path.append(root_dir)
+
 import auth
 
 if not auth.check_password():
     st.stop()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 02 - 2026-03-11</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 04 - 2026-04-08</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Main System Code Starts Here ---
 # ==========================================
 
-# --- Functions for PDF Generation ---
-def create_pdf(data_dict):
+# --- Functions for PDF Generation (Structured & 2 Pages) ---
+def create_pdf(data_dict, image_file=None):
     pdf = FPDF()
     pdf.add_page()
     
     # Title
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Sales Job Order For Printed Item", ln=True, align='C')
-    pdf.ln(5)
+    pdf.cell(0, 10, "Sales Job Order - OPP Label", ln=True, align='C')
+    pdf.ln(2)
     
-    # Helper function to prevent UnicodeEncodeError in FPDF
+    # Helper functions for structured layout
     def safe_txt(txt):
         return str(txt).encode('latin-1', 'replace').decode('latin-1')
-    
-    # Fields that require a full line
-    full_width_fields = ["Head Office Address", "Delivery Address", "Remarks / Notes"]
-    
-    items = list(data_dict.items())
-    i = 0
-    
-    # Loop to print 2 items per row with borders
-    while i < len(items):
-        key1, val1 = items[i]
         
-        # If the field is a long text, give it a full row
-        if key1 in full_width_fields:
-            pdf.set_font("Arial", 'B', 10)
-            pdf.cell(190, 8, safe_txt(f"{key1}:"), border=1, ln=True, fill=False)
-            pdf.set_font("Arial", '', 10)
-            pdf.multi_cell(190, 8, safe_txt(val1), border=1)
-            pdf.ln(1)
-            i += 1
-            continue
+    def section_header(title):
+        pdf.set_font("Arial", 'B', 11)
+        pdf.set_fill_color(220, 220, 220) # Light Gray background
+        pdf.cell(190, 8, safe_txt(title), border=1, ln=True, fill=True)
         
-        # Column 1
+    def row_2_cols(k1, v1, k2, v2):
         pdf.set_font("Arial", 'B', 10)
-        pdf.cell(45, 8, safe_txt(f"{key1}:"), border=1)
+        pdf.cell(45, 8, safe_txt(f"{k1}:"), border=1)
         pdf.set_font("Arial", '', 10)
-        pdf.cell(50, 8, safe_txt(val1)[:40], border=1)
-        
-        # Column 2
-        if i + 1 < len(items) and items[i+1][0] not in full_width_fields:
-            key2, val2 = items[i+1]
-            pdf.set_font("Arial", 'B', 10)
-            pdf.cell(45, 8, safe_txt(f"{key2}:"), border=1)
-            pdf.set_font("Arial", '', 10)
-            pdf.cell(50, 8, safe_txt(val2)[:40], border=1, ln=True)
-            i += 2
-        else:
-            # End the line with an empty bordered cell to keep the grid perfectly aligned
-            pdf.cell(95, 8, "", border=1, ln=True)
-            i += 1
-            
-    # --- Approvals / Signature Boxes ---
-    pdf.ln(8)
-    pdf.set_fill_color(220, 220, 220)
+        pdf.cell(50, 8, safe_txt(v1)[:40], border=1)
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(45, 8, safe_txt(f"{k2}:"), border=1)
+        pdf.set_font("Arial", '', 10)
+        pdf.cell(50, 8, safe_txt(v2)[:40], border=1, ln=True)
+
+    def row_full(k, v):
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(45, 8, safe_txt(f"{k}:"), border=1)
+        pdf.set_font("Arial", '', 10)
+        pdf.multi_cell(145, 8, safe_txt(v), border=1)
+
+    # --- Section 1: Order Info ---
+    section_header("1. Order Information")
+    row_2_cols("Job Order No", data_dict.get("Job Order No"), "Date", data_dict.get("Date"))
+    row_2_cols("Customer Name", data_dict.get("Customer Name"), "Customer PO#", data_dict.get("Customer PO#"))
+    row_2_cols("Sales PO#", data_dict.get("Sales PO#"), "Customer ID", data_dict.get("Customer ID"))
+    row_full("Delivery Address", data_dict.get("Delivery Address"))
+    pdf.ln(2)
+
+    # --- Section 2: Material Specs ---
+    section_header("2. Material Specifications")
+    row_2_cols("Product Type", data_dict.get("Product Type"), "Material Type", data_dict.get("Material Type"))
+    row_2_cols("Thickness (u)", data_dict.get("Thickness (u)"), "Density", data_dict.get("Density (g/cm3)"))
+    row_2_cols("Mother Roll Width", data_dict.get("Mother Roll Width (mm)"), "Target Edge Trim", data_dict.get("Edge Trim (mm)"))
+    pdf.ln(2)
+
+    # --- Section 3: Print & Dimensions ---
+    section_header("3. Print & Dimensions")
+    row_2_cols("Label Width (mm)", data_dict.get("Label/Film Width (mm)"), "Repeat Length (mm)", data_dict.get("Repeat Length (mm)"))
+    row_2_cols("Print Surface", data_dict.get("Print Surface"), "No. of Colors", data_dict.get("Colors"))
+    row_2_cols("Artwork Status", data_dict.get("Artwork Status"), "Artwork No.", data_dict.get("Artwork No."))
+    pdf.ln(2)
+
+    # --- Section 4: Winding & Core ---
+    section_header("4. Winding & Core")
+    row_2_cols("Inner Core", data_dict.get("Inner Core"), "Core Type", data_dict.get("Core Type"))
+    row_2_cols("Winding Direction", data_dict.get("Winding Direction"), "Final Format", data_dict.get("Final Format"))
+    pdf.ln(2)
+
+    # --- Section 5: Quantity & Delivery ---
+    section_header("5. Quantity & Delivery")
+    row_2_cols("Required QTY", data_dict.get("Required Quantity"), "Due Date", data_dict.get("Due Date"))
+    row_2_cols("Packaging", data_dict.get("Packaging"), "Delivery City", data_dict.get("Delivery City"))
+    row_full("Remarks / Notes", data_dict.get("Remarks / Notes"))
+    pdf.ln(4)
+
+    # --- Section 6: Signatures ---
+    pdf.set_fill_color(240, 240, 240)
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(47.5, 8, "Sales", border=1, align='C', fill=True)
     pdf.cell(47.5, 8, "Production", border=1, align='C', fill=True)
     pdf.cell(47.5, 8, "QC", border=1, align='C', fill=True)
     pdf.cell(47.5, 8, "Manager", border=1, align='C', fill=True, ln=True)
     
-    # Empty boxes for signing
-    pdf.cell(47.5, 20, "", border=1)
-    pdf.cell(47.5, 20, "", border=1)
-    pdf.cell(47.5, 20, "", border=1)
-    pdf.cell(47.5, 20, "", border=1, ln=True)
+    pdf.cell(47.5, 15, "", border=1)
+    pdf.cell(47.5, 15, "", border=1)
+    pdf.cell(47.5, 15, "", border=1)
+    pdf.cell(47.5, 15, "", border=1, ln=True)
+
+    # --- PAGE 2: Attached Design ---
+    if image_file is not None:
+        try:
+            # Save uploaded image to a temporary file for FPDF to read
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+                tmp_file.write(image_file.getvalue())
+                tmp_path = tmp_file.name
+
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 16)
+            pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
+            pdf.ln(5)
             
+            # Place image (w=190 ensures it fits page width perfectly)
+            pdf.image(tmp_path, x=10, y=30, w=190)
+            
+            # Cleanup temp file
+            os.remove(tmp_path)
+        except Exception as e:
+            pdf.add_page()
+            pdf.set_font("Arial", '', 12)
+            pdf.cell(0, 10, f"Notice: Could not load the image. System Error: {str(e)}", ln=True)
+
     return pdf.output(dest='S').encode('latin-1')
 
-st.title("📝 Create New Job Order - OPP Label (Wrap Around)")
+
+st.title("📝 Create New Job Order - OPP Label")
 st.markdown("---")
 
 # 1. Customer Information
 st.subheader("👤 1. Customer Information")
-
 col1, col2, col3 = st.columns(3)
 with col1:
     date = st.date_input("Date", datetime.date.today())
@@ -115,16 +158,12 @@ with col_addr1:
     head_office_address = st.text_input("Company Head Office Address")
 with col_addr2:
     delivery_address = st.text_input("Delivery Address")
-
 st.markdown("---")
 
 # 2. Product Specs 
 st.subheader("⚙️ 2. Product Specs")
-
-# Product type is fixed for this page
 st.text_input("Product Type", value="OPP Label (Wrap Around)", disabled=True)
 
-# Row 1: Basic Material Specs
 col_s1, col_s2, col_s3, col_s4 = st.columns(4)
 with col_s1:
     product_code = st.text_input("Product Code (SAP)")
@@ -135,7 +174,6 @@ with col_s3:
 with col_s4:
     thickness = st.selectbox("Thickness (u)", [30, 35, 38, 40])
 
-# Row 2: Dimensions and Colors
 col_s5, col_s6, col_s7, col_s8 = st.columns(4)
 with col_s5:
     width = st.number_input("Label Width (mm)", min_value=0.0) 
@@ -143,23 +181,18 @@ with col_s6:
     repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0)
 with col_s7:
     color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"])
-    if color_choice == "Other":
-        color_of_film = st.text_input("Specify Color:")
-    else:
-        color_of_film = color_choice
+    color_of_film = st.text_input("Specify Color:") if color_choice == "Other" else color_choice
 with col_s8:
     colors_no = st.number_input("No. of Colors in Printing", min_value=1, max_value=10)
 
-# Row 3: Design Data
 col_s9, col_s10 = st.columns(2)
 with col_s9:
     artwork = st.selectbox("Artwork Status", ["NEW", "REPEAT"])
 with col_s10:
     artwork_no = st.text_input("Artwork No.") 
 
-# 3. Dynamic Section based on OPP
+# 3. Dynamic Section
 st.markdown("### 🔄 Specific Specs for: OPP Label")
-
 st.markdown("#### 🧻 Print, Core & Winding Specifications")
 
 col_w1, col_w2 = st.columns(2)
@@ -178,9 +211,8 @@ with col_d3:
 with col_d4:
     winding_direction = st.selectbox("Winding Direction#", ["Clockwise #4", "Anti-clockwise #3"])
 
-# --- SMART CALCULATOR & VALIDATION SECTION ---
+# Smart Calculator
 st.markdown("#### 🧮 Smart Web & Production Calculator")
-
 col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
 with col_calc1:
     mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0)
@@ -195,33 +227,23 @@ col_calc4, col_calc5, col_calc6, col_calc7 = st.columns(4)
 with col_calc4:
     edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0, value=24)
 
-# Variable Initialization for calculations
-pcs_per_roll = 0
-waste_by_mm = 0.0
-unused_waste = 0.0
-total_labels_calculated = 0
-    
-# Calculation Logic
-if mother_roll_length > 0 and repeat_length > 0:
-    pcs_per_roll = int((mother_roll_length * 1000) / repeat_length)
-    
+pcs_per_roll = int((mother_roll_length * 1000) / repeat_length) if mother_roll_length > 0 and repeat_length > 0 else 0
 with col_calc5:
     st.number_input("Pcs / Roll", value=pcs_per_roll, disabled=True)
     
-if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
-    waste_by_mm = float(mother_roll_width - (width * no_of_lines))
-    unused_waste = float(waste_by_mm - edge_trim)
-    
+waste_by_mm = float(mother_roll_width - (width * no_of_lines)) if mother_roll_width > 0 and width > 0 and no_of_lines > 0 else 0.0
+unused_waste = float(waste_by_mm - edge_trim) if waste_by_mm > 0 else 0.0
+
 with col_calc6:
     st.number_input("Total Waste (mm)", value=waste_by_mm, disabled=True)
-    
 with col_calc7:
     st.number_input("Unused Waste (mm)", value=unused_waste, disabled=True)
 
+total_labels_calculated = 0
 if mother_roll_width > 0 and width > 0 and no_of_lines > 0:
     required_width = (width * no_of_lines) + edge_trim
     if required_width > mother_roll_width:
-        st.error(f"🚨 **GEOMETRY ERROR:** Required width is **{required_width} mm**, but your Mother Roll is only **{mother_roll_width} mm**!")
+        st.error(f"🚨 **GEOMETRY ERROR:** Required width is **{required_width} mm**, but Mother Roll is only **{mother_roll_width} mm**!")
     elif required_width < mother_roll_width:
         st.warning(f"⚠️ **WIDTH WARNING:** You have **{unused_waste} mm** of UNUSED waste.")
     else:
@@ -233,21 +255,19 @@ if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0 and no_of_ro
 
 st.markdown("---")
 
-# 4. Quantity & Delivery
-st.subheader("📦 3. Quantity & Delivery")
-col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
+# 4. Quantity, Delivery & Artwork Upload
+st.subheader("📦 3. Quantity, Delivery & Artwork")
 
+# NEW: Artwork Upload feature
+uploaded_design = st.file_uploader("🖼️ Upload Approved Design / Artwork (JPG or PNG)", type=["jpg", "jpeg", "png"])
+if uploaded_design:
+    st.success("Design attached successfully! It will appear on Page 2 of the PDF.")
+
+col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
 with col_q1:
     quantity = st.number_input("Required Quantity by Customer", min_value=0) 
-    
-    # --- RED WARNING LOGIC ---
-    if quantity > 0 and total_labels_calculated > 0:
-        if quantity != total_labels_calculated:
-            st.markdown(
-                f"<p style='color:red; font-size:14px; font-weight:bold;'>🚨 WARNING: Requested Quantity ({quantity:,}) does NOT match Calculated Production ({total_labels_calculated:,})!</p>", 
-                unsafe_allow_html=True
-            )
-
+    if quantity > 0 and total_labels_calculated > 0 and quantity != total_labels_calculated:
+        st.markdown(f"<p style='color:red; font-size:14px; font-weight:bold;'>🚨 WARNING: Requested Quantity ({quantity:,}) does NOT match Calculated Production ({total_labels_calculated:,})!</p>", unsafe_allow_html=True)
 with col_q2:
     packaging = st.text_input("Packaging", value="Suitable / As Usual")
 with col_q3:
@@ -255,12 +275,9 @@ with col_q3:
 with col_q4:
     delivery_city = st.text_input("Delivery City") 
 
-# Remarks / Notes Section
-st.markdown("---")
-st.subheader("📝 4. Additional Notes")
 notes = st.text_area("Remarks / Notes", placeholder="Enter any specific notes or instructions here...")
 
-# --- Data Collection for Export ---
+# Data Collection
 job_data = {
     "Date": str(date),
     "Job Order No": job_order_no,
@@ -275,10 +292,10 @@ job_data = {
     "Product Code": product_code,
     "Material Type": material_type, 
     "Density (g/cm3)": density,     
-    "Label/Film Width (mm)": width,
-    "Repeat Length (mm)": repeat_length, 
-    "Thickness (u)": thickness,
-    "Colors": colors_no,
+    "Label/Film Width (mm)": str(width),
+    "Repeat Length (mm)": str(repeat_length), 
+    "Thickness (u)": str(thickness),
+    "Colors": str(colors_no),
     "Color of Film": color_of_film, 
     "Artwork Status": artwork,
     "Artwork No.": artwork_no,
@@ -286,9 +303,11 @@ job_data = {
     "Final Format": final_format, 
     "Inner Core": inner_core,
     "Core Type": core_type,                 
-    "Wall Thickness (mm)": core_thickness,  
+    "Wall Thickness (mm)": str(core_thickness),  
     "Winding Direction": winding_direction,
-    "Required Quantity": quantity,
+    "Mother Roll Width (mm)": str(mother_roll_width),
+    "Edge Trim (mm)": str(edge_trim),
+    "Required Quantity": str(quantity),
     "Packaging": packaging,
     "Due Date": str(due_date),
     "Remarks / Notes": notes
@@ -296,7 +315,7 @@ job_data = {
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# --- Action Buttons Row ---
+# Actions
 st.subheader("🎯 Actions")
 btn_col1, btn_col2 = st.columns(2) 
 
@@ -305,7 +324,7 @@ with btn_col1:
         st.success("OPP Job Order saved successfully! Ready for production review.")
         
 with btn_col2:
-    pdf_file = create_pdf(job_data)
+    pdf_file = create_pdf(job_data, image_file=uploaded_design)
     st.download_button(
         label="📄 Export to PDF",
         data=pdf_file,
