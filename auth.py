@@ -1,83 +1,82 @@
 import streamlit as st
 
-def show_smart_sidebar():
-    """Hides the default sidebar and builds a role-based custom sidebar"""
-    
-    # 1. Hide default elements using CSS for a clean ERP look
-    st.markdown(
-        """
-        <style>
-            /* Hide the default Streamlit sidebar menu */
-            [data-testid="stSidebarNav"] {display: none !important;}
-            
-            /* Hide the top header (GitHub icon, Share, Star, Menu) */
-            header {visibility: hidden !important;}
-            
-            /* Hide the default Streamlit footer */
-            footer {visibility: hidden !important;}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    
-    # 2. Build the custom, professional sidebar
-    with st.sidebar:
-        st.markdown("### 🏭 FlexoBrain")
-        st.page_link("app.py", label="Main Hub", icon="🏠")
-        
-        role = st.session_state.get("role")
-        
-        st.markdown("---")
-        st.markdown("#### 📋 Job Orders")
-        st.page_link("pages/1_OPP_Label_Order.py", label="OPP Labels", icon="🏷️")
-        st.page_link("pages/2_Shrink_Film_Order.py", label="Shrink Films", icon="📦")
-        st.page_link("pages/3_LDPE_Bag_Order.py", label="LDPE Bags", icon="🛍️")
-        
-        # Show Admin menu ONLY if role is admin
-        if role == "admin":
-            st.markdown("---")
-            st.markdown("#### ⚙️ Admin Settings")
-            st.page_link("pages/4_Anilox_Library.py", label="Anilox Library", icon="🖨️")
-            st.page_link("pages/5_Machine_Setup.py", label="Machine Setup", icon="🎛️")
-            
-        st.markdown("---")
-        
-        # Log out button
-        if st.button("🚪 Log Out", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
+# ==========================================
+# 1. Define Roles and Passwords
+# ==========================================
+ROLE_PASSWORDS = {
+    "p11": "sales",       # Sales Department
+    "p22": "production",  # Production Department
+    "p33": "admin"        # Top Management (Full Access)
+}
 
+# ==========================================
+# 2. Elegant Login Interface
+# ==========================================
+def login_form():
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🏭 NexFlexo ERP</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Please enter your department password</p>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        with st.container(border=True):
+            password = st.text_input("Password", type="password", key="login_pass")
+            if st.button("🚪 Login", type="primary", use_container_width=True):
+                if password in ROLE_PASSWORDS:
+                    # Save login state and set user role
+                    st.session_state["authenticated"] = True
+                    st.session_state["role"] = ROLE_PASSWORDS[password]
+                    st.rerun()
+                else:
+                    st.error("❌ Invalid Password!")
+
+# ==========================================
+# 3. Core Authentication Function
+# ==========================================
 def check_password():
-    """Returns `True` if the user had the correct password."""
+    """Checks if the user is already logged in."""
+    if not st.session_state.get("authenticated"):
+        login_form()
+        st.stop() # Stops the rest of the page from running until logged in
+    return True
 
-    def password_entered():
-        if st.session_state["password"] == st.secrets["passwords"]["admin"]:
-            st.session_state["password_correct"] = True
-            st.session_state["role"] = "admin"
-            del st.session_state["password"]
-            
-        elif st.session_state["password"] == st.secrets["passwords"]["orders"]:
-            st.session_state["password_correct"] = True
-            st.session_state["role"] = "orders"
-            del st.session_state["password"]
-            
-        else:
-            st.session_state["password_correct"] = False
-
-    if "password_correct" not in st.session_state:
-        st.text_input(
-            "🔒 Please enter your password:", type="password", on_change=password_entered, key="password"
-        )
-        return False
-        
-    elif not st.session_state["password_correct"]:
-        st.text_input(
-            "🔒 Please enter your password:", type="password", on_change=password_entered, key="password"
-        )
-        st.error("❌ Incorrect password")
-        return False
-        
-    else:
-        # Password is correct! Show the smart sidebar before loading the page content
-        show_smart_sidebar()
+# ==========================================
+# 4. Department Guard (Role Access Control)
+# ==========================================
+def require_role(allowed_roles):
+    """
+    Allows access only to specified roles (and always allows admin).
+    allowed_roles: list, e.g., ["sales"]
+    """
+    check_password() # Ensure user is logged in first
+    
+    current_role = st.session_state.get("role")
+    
+    # Admin has a master key, can enter anywhere
+    if current_role == "admin":
         return True
+        
+    # If user role is in the allowed roles for this page
+    if current_role in allowed_roles:
+        return True
+    
+    # If an employee tries to access an unauthorized page:
+    st.error("⛔ Sorry, you do not have permission to access this section.")
+    st.info("💡 This section is reserved for other departments. Please select your department's page from the sidebar.")
+    st.stop()
+
+# ==========================================
+# 5. Logout Button
+# ==========================================
+def logout_button():
+    """Places a logout button in the sidebar."""
+    if st.session_state.get("authenticated"):
+        st.sidebar.markdown("---")
+        # Display department role for clarity
+        role_display = st.session_state.get("role").upper()
+        st.sidebar.caption(f"👤 Logged in as: **{role_display}**")
+        
+        if st.sidebar.button("Logout 🚪", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
