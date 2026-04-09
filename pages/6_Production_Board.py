@@ -14,8 +14,8 @@ if root_dir not in sys.path:
 
 import auth
 
-if not auth.check_password():
-    st.stop()
+auth.require_role(["production"])
+auth.logout_button()
 
 # --- Version Control ---
 st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 01 - 2026-04-08</div>", unsafe_allow_html=True)
