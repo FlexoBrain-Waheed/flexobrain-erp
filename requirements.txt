@@ -3,4 +3,3 @@ supabase
 openpyxl
 fpdf
 Pillow
-supabase
