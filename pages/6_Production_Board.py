@@ -1,8 +1,6 @@
 import streamlit as st
-import pandas as pd
 import sys
 from pathlib import Path
-from fpdf import FPDF
 from supabase import create_client, Client
 
 # --- Page configuration ---
@@ -18,7 +16,7 @@ auth.require_role(["production", "admin"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 05 - Print Units Architecture</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 06 - cm³/m² Primary Input</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -56,8 +54,7 @@ completed_orders = [o for o in all_orders if o.get('status') == 'completed']
 
 tab1, tab2, tab3 = st.tabs(["📥 Pending (New)", "⚙️ In Production", "✅ Completed"])
 
-# --- NEW: Print Units Architecture ---
-def display_order_card(order, current_tab):
+def display_advanced_order_card(order, current_tab):
     with st.expander(f"📦 Order: {order['order_number']} | Client: {order['customer_name']}", expanded=(current_tab == "in_prod")):
         
         # 1. Basic Info
@@ -65,69 +62,67 @@ def display_order_card(order, current_tab):
         col1.write(f"**Product:** {order.get('product_type')}")
         col2.write(f"**Material:** {order.get('material_type')} ({order.get('thickness_micron')}µ)")
         col3.write(f"**Size:** {order.get('label_width_mm')} x {order.get('repeat_length_mm')} mm")
-        colors_count = int(order.get('colors_count', 6) or 6) # Default to 6 if empty
-        col4.write(f"**Colors:** {colors_count}")
+        col4.write(f"**QTY:** {order.get('required_quantity'):,} PCS")
             
         st.markdown("---")
         
-        # 2. TECHNICAL JOB TICKET (Print Units Dashboard)
-        st.markdown(f"#### ⚙️ Technical Job Ticket ({colors_count} Print Units)")
-        st.info("💡 **Draft Mode:** UI/UX Test. Data saving to cloud will be activated next.")
+        # 2. Advanced Technical Setup (Print Units)
+        st.markdown("#### ⚙️ Technical Job Ticket (Unit Configuration)")
+        st.info("Set up each printing unit. Calculations for LPI and BCM are handled automatically.")
         
-        # Create Tabs for each Print Unit
-        unit_tabs = st.tabs([f"🎨 Unit {i+1}" for i in range(colors_count)])
-        
-        for i, tab in enumerate(unit_tabs):
-            with tab:
-                st.markdown(f"**⚙️ Settings for Print Unit {i+1}**")
-                col_ink, col_anilox, col_plate = st.columns(3)
+        # Example: Unit 1 Configuration
+        with st.container(border=True):
+            st.markdown("##### Unit 1")
+            u1_c1, u1_c2, u1_c3 = st.columns(3)
+            
+            with u1_c1:
+                st.markdown("**🎨 Ink & Color**")
+                color_name = st.text_input("Color Name / Code", value="White", key=f"u1_color_{order['id']}")
+                coverage = st.number_input("Ink Coverage (%)", value=80.01, key=f"u1_cov_{order['id']}")
+                viscosity = st.selectbox("Viscosity Cup", ["Ford #4", "DIN 4", "Zahn 2"], key=f"u1_visc_{order['id']}")
+                lab_values = st.text_input("LAB Values (L,a,b) From Ref", key=f"u1_lab_{order['id']}")
                 
-                with col_ink:
-                    st.markdown("**🎨 1. Ink Setup**")
-                    st.text_input("Color Name (e.g., Pantone 485 C)", key=f"color_{order['id']}_{i}")
-                    st.text_input("Ink Code & Mfg", key=f"ink_mfg_{order['id']}_{i}")
-                    st.selectbox("Viscosity Cup", ["Ford #4", "DIN 4", "Zahn 2", "Other"], key=f"visc_cup_{order['id']}_{i}")
-                    st.number_input("Viscosity (sec)", min_value=0, key=f"visc_sec_{order['id']}_{i}")
-                    st.text_input("LAB Values (L,a,b)", key=f"lab_{order['id']}_{i}")
-                    
-                with col_anilox:
-                    st.markdown("**🧻 2. Anilox Setup**")
-                    st.text_input("Anilox No. & Brand", key=f"anx_no_{order['id']}_{i}")
-                    st.number_input("LPI", min_value=0, step=50, key=f"anx_lpi_{order['id']}_{i}")
-                    
-                    # Smart cm3 -> BCM Calculator
-                    cm3_val = st.number_input("Volume (cm³/m²)", min_value=0.0, step=0.1, key=f"anx_cm3_{order['id']}_{i}")
-                    bcm_val = round(cm3_val / 1.55, 2) if cm3_val > 0 else 0.0
-                    if cm3_val > 0:
-                        st.success(f"🔄 Equivalent: **{bcm_val} BCM**")
-                        
-                with col_plate:
-                    st.markdown("**🛠️ 3. Plate & Tape**")
-                    st.selectbox("Plate Thickness", ["1.14 mm", "1.70 mm", "2.54 mm", "2.84 mm", "Other"], key=f"plate_thk_{order['id']}_{i}")
-                    st.number_input("Distortion Factor (%)", min_value=0.0, max_value=100.0, value=100.0, step=0.01, key=f"dist_{order['id']}_{i}")
-                    st.text_input("Tape Brand", key=f"tape_br_{order['id']}_{i}")
-                    st.selectbox("Tape Hardness", ["Soft", "Medium Soft", "Medium", "Medium Hard", "Hard"], key=f"tape_hrd_{order['id']}_{i}")
-
-        # Cliché & Plate Actions
+            with u1_c2:
+                st.markdown("**🧻 Anilox Selection**")
+                anilox_selected = st.selectbox("Anilox Brand & No.", ["Select Anilox...", "Apex 1200", "Zecher 800"], key=f"u1_anilox_{order['id']}")
+                
+                lpc = st.number_input("Anilox LPC", value=100, step=10, key=f"u1_lpc_{order['id']}")
+                st.caption(f"🔄 Equivalent: **{lpc * 2.54:.0f} LPI**")
+                
+                # --- CORRECTED SECTION HERE ---
+                cm3_vol = st.number_input("Volume (cm³/m²)", value=4.65, step=0.1, key=f"u1_cm3_{order['id']}")
+                st.caption(f"💧 Equivalent: **{cm3_vol / 1.55:.2f} BCM**")
+                # ------------------------------
+                
+            with u1_c3:
+                st.markdown("**🛠️ Mounting & Wash**")
+                tape_brand = st.selectbox("Tape Brand", ["tesa", "3M", "Lohmann", "Olinxo"], key=f"u1_tape_{order['id']}")
+                tape_hard = st.selectbox("Tape Hardness", ["Soft", "Medium Soft", "Medium", "Medium Hard", "Hard"], key=f"u1_hard_{order['id']}")
+                
+                wash_mode = st.selectbox(
+                    "🧼 Cleaning Mode", 
+                    ["Evacuation (1L)", "Light Wash (3L)", "Normal Wash (6L)", "Intensive/Deep (12L)"], 
+                    index=2, 
+                    key=f"u1_wash_{order['id']}"
+                )
+        
+        # Requisition Generation Section
         st.markdown("<br>", unsafe_allow_html=True)
-        col_p1, col_p2, col_p3 = st.columns([1, 1, 2])
-        if order.get("artwork_status") == "NEW":
-            col_p1.button("📑 Issue New Cliché Request (PDF)", key=f"cliche_{order['id']}", type="secondary", use_container_width=True)
-        else:
-            col_p1.button("📂 Pull Cliché from Archive", key=f"archive_{order['id']}", type="secondary", use_container_width=True)
-            col_p2.button("🔄 Copy Specs from Last Run", key=f"copy_{order['id']}", use_container_width=True)
+        req_col1, req_col2 = st.columns([1, 1])
+        req_col1.success("💡 **Calculations Estimate:** Required Ink: **14.5 Kg** | Solvent: **6 Liters**")
+        req_col2.button("📤 Generate Material Requisitions", key=f"req_{order['id']}", use_container_width=True, type="secondary")
             
         st.markdown("---")
         
-        # 3. Final Actions
+        # 3. Actions
         action1, action2 = st.columns(2)
         with action1:
             if current_tab == "pending":
-                if st.button("🚀 Confirm Specs & Move to Production", key=f"start_{order['id']}", type="primary", use_container_width=True):
+                if st.button("🚀 Confirm Setup & Start Production", key=f"start_{order['id']}", type="primary", use_container_width=True):
                     supabase.table("job_orders").update({"status": "in_production"}).eq("id", order['id']).execute()
                     st.rerun()
             elif current_tab == "in_prod":
-                if st.button("✅ Job Completed", key=f"comp_{order['id']}", type="primary", use_container_width=True):
+                if st.button("✅ Mark as Completed", key=f"comp_{order['id']}", type="primary", use_container_width=True):
                     supabase.table("job_orders").update({"status": "completed"}).eq("id", order['id']).execute()
                     st.rerun()
         with action2:
@@ -135,8 +130,11 @@ def display_order_card(order, current_tab):
 
 # --- Populate Tabs ---
 with tab1:
-    for order in pending_orders: display_order_card(order, "pending")
+    if not pending_orders: st.info("No pending orders.")
+    for order in pending_orders: display_advanced_order_card(order, "pending")
 with tab2:
-    for order in in_production_orders: display_order_card(order, "in_prod")
+    if not in_production_orders: st.info("No orders in production.")
+    for order in in_production_orders: display_advanced_order_card(order, "in_prod")
 with tab3:
-    for order in completed_orders: display_order_card(order, "completed")
+    if not completed_orders: st.info("No completed orders.")
+    for order in completed_orders: display_advanced_order_card(order, "completed")
