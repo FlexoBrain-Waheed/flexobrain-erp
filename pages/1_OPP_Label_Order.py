@@ -23,7 +23,7 @@ auth.require_role(["sales"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 11 - FlexoBrain Repeat Order Sync</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 12 - FlexoBrain Repeat Order & Smart Artwork</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -323,7 +323,29 @@ if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0 and no_of_ro
 st.markdown("---")
 st.subheader("📦 3. Quantity, Delivery & Artwork")
 
-uploaded_design = st.file_uploader("🖼️ Upload Approved Design", type=["jpg", "jpeg", "png"], key="in_upload")
+# ==========================================
+# --- SMART ARTWORK UPLOADER FOR REPEAT ---
+# ==========================================
+uploaded_design = st.file_uploader("🖼️ Upload NEW Design (Leave empty to use existing on REPEAT)", type=["jpg", "jpeg", "png"], key="in_upload")
+
+final_artwork_path_for_db = None
+
+if uploaded_design is not None:
+    st.image(uploaded_design, caption="New Artwork Uploaded", width=200)
+    # Placeholder for actual upload logic if needed in the future
+    final_artwork_path_for_db = "new_upload_provided" 
+elif old_order and old_order.get('artwork_url'):
+    # If no new file is uploaded, but it's a repeat order with an existing URL
+    old_url = old_order.get('artwork_url')
+    st.success("🔄 USING EXISTING DESIGN")
+    # Note: st.image can load a URL directly if the URL is valid/public
+    try:
+        st.image(old_url, caption=f"Existing design from order {old_order.get('order_number')}", width=200)
+    except Exception:
+        st.info("Existing design link attached to order.")
+    final_artwork_path_for_db = old_url
+
+# ==========================================
 
 col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
 with col_q1:
@@ -405,6 +427,7 @@ with btn_col1:
                     "colors_count": int(colors_no) if colors_no else 0,
                     "artwork_status": artwork,
                     "artwork_number": artwork_no,
+                    "artwork_url": final_artwork_path_for_db if final_artwork_path_for_db else "", # <-- Added Artwork URL
                     "print_surface": print_position,
                     "final_format": final_format,
                     "inner_core": inner_core,
