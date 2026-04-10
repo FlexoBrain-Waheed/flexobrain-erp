@@ -23,7 +23,7 @@ auth.require_role(["sales"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 15 - FlexoBrain Final Logic Fix</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 16 - FlexoBrain FULL RESTORE</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -37,122 +37,73 @@ def init_connection():
 try:
     supabase: Client = init_connection()
 except Exception as e:
-    st.error("⚠️ Database connection failed. Please check Streamlit Secrets.")
+    st.error("⚠️ Database connection failed.")
     st.stop()
 
 # ==========================================
-# --- Helper Function (IMPORTANT: Fixed NameError) ---
+# --- Helper Functions ---
 # ==========================================
 def safe_idx(opt_list, val):
     try:
         return opt_list.index(val)
-    except (ValueError, KeyError):
+    except:
         return 0
 
-# ==========================================
-# --- Auto-generate Job Order Number Logic ---
-# ==========================================
 def generate_order_number(supabase_client):
     today_str = datetime.date.today().strftime("%Y%m%d")
     prefix = f"BOPP-{today_str}-"
     try:
         response = supabase_client.table("job_orders").select("order_number").execute()
-        seqs = []
-        for row in response.data:
-            if row.get('order_number', '').startswith(prefix):
-                try:
-                    seq = int(row['order_number'].split('-')[-1])
-                    seqs.append(seq)
-                except:
-                    pass
+        seqs = [int(row['order_number'].split('-')[-1]) for row in response.data if row.get('order_number', '').startswith(prefix)]
         next_seq = max(seqs) + 1 if seqs else 1
         return f"{prefix}{next_seq:03d}"
-    except Exception as e:
+    except:
         return f"{prefix}999"
 
 auto_job_order_no = generate_order_number(supabase)
 
 # ==========================================
-# --- Functions for PDF Generation ---
+# --- PDF Generation (With Stamp & Artwork) ---
 # ==========================================
 def create_pdf(data_dict, image_file=None, artwork_url=None):
     pdf = FPDF()
     pdf.add_page()
-    
     pdf.set_font("Arial", 'B', 16)
     pdf.cell(0, 10, f"FlexoBrain Job Order: {data_dict.get('Job Order No')}", ln=True, align='C')
-    pdf.ln(2)
     
-    def safe_txt(txt):
-        return str(txt).encode('latin-1', 'replace').decode('latin-1')
-        
-    def section_header(title):
+    def safe_txt(txt): return str(txt).encode('latin-1', 'replace').decode('latin-1')
+    def section_h(t):
         pdf.set_font("Arial", 'B', 11)
         pdf.set_fill_color(220, 220, 220)
-        pdf.cell(190, 8, safe_txt(title), border=1, ln=True, fill=True)
-        
-    def row_2_cols(k1, v1, k2, v2):
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(45, 8, safe_txt(f"{k1}:"), border=1)
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(50, 8, safe_txt(v1)[:40], border=1)
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(45, 8, safe_txt(f"{k2}:"), border=1)
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(50, 8, safe_txt(v2)[:40], border=1, ln=True)
+        pdf.cell(190, 8, safe_txt(t), border=1, ln=True, fill=True)
+    def r2(k1, v1, k2, v2):
+        pdf.set_font("Arial", 'B', 10); pdf.cell(45, 8, safe_txt(k1)+":", border=1)
+        pdf.set_font("Arial", '', 10); pdf.cell(50, 8, safe_txt(v1), border=1)
+        pdf.set_font("Arial", 'B', 10); pdf.cell(45, 8, safe_txt(k2)+":", border=1)
+        pdf.set_font("Arial", '', 10); pdf.cell(50, 8, safe_txt(v2), border=1, ln=True)
 
-    def row_full(k, v):
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(45, 8, safe_txt(f"{k}:"), border=1)
-        pdf.set_font("Arial", '', 10)
-        pdf.multi_cell(145, 8, safe_txt(v), border=1)
-
-    # Sections
-    section_header("1. Order Information")
-    row_2_cols("Job Order No", data_dict.get("Job Order No"), "Date", data_dict.get("Date"))
-    row_2_cols("Customer Name", data_dict.get("Customer Name"), "Customer ID", data_dict.get("Customer ID"))
-    row_full("Delivery Address / City", data_dict.get("Delivery Address"))
+    section_h("1. Order Information")
+    r2("Job Order No", data_dict.get("Job Order No"), "Date", data_dict.get("Date"))
+    r2("Customer Name", data_dict.get("Customer Name"), "Customer ID", data_dict.get("Customer ID"))
     pdf.ln(2)
 
-    section_header("2. Material Specifications")
-    row_2_cols("Product Type", "BOPP Label", "Material Type", data_dict.get("Material Type"))
-    row_2_cols("Thickness (u)", data_dict.get("Thickness (u)"), "Density", data_dict.get("Density (g/cm3)"))
-    pdf.ln(2)
-
-    section_header("3. Quantity & Delivery")
-    row_2_cols("Required QTY", data_dict.get("Required Quantity"), "Due Date", data_dict.get("Due Date"))
-    row_full("Remarks / Notes", data_dict.get("Remarks / Notes"))
-    
     # Stamp
-    pdf.ln(8)
-    current_y = pdf.get_y()
-    pdf.set_fill_color(245, 245, 245)
-    pdf.rect(10, current_y, 190, 35, 'F')
-    pdf.set_xy(15, current_y + 5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_text_color(0, 128, 0)
-    pdf.cell(0, 6, "[ APPROVED ] Digitally Approved & Sealed", ln=True)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", '', 10)
-    pdf.set_x(15)
-    pdf.cell(0, 6, f"By: Eng. Amro", ln=True)
-    pdf.set_x(15)
-    pdf.cell(0, 6, f"Timestamp: {datetime.datetime.now().strftime('%d-%m-%Y | %H:%M:%S')}", ln=True)
+    pdf.ln(10)
+    pdf.set_fill_color(245, 245, 245); pdf.rect(10, pdf.get_y(), 190, 30, 'F')
+    pdf.set_font("Arial", 'B', 12); pdf.set_text_color(0, 128, 0)
+    pdf.cell(0, 8, "  ✅ Digitally Approved & Sealed", ln=True)
+    pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 6, f"  By: Eng. Amro | Timestamp: {datetime.datetime.now().strftime('%d-%m-%Y %H:%M')}", ln=True)
 
-    # Page 2 Artwork
-    if image_file is not None or (artwork_url and str(artwork_url).startswith("http")):
+    if image_file or artwork_url:
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
-        pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
+        pdf.cell(0, 10, "Approved Design Artwork", ln=True, align='C')
         if image_file:
             img = Image.open(image_file).convert('RGB')
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-                tmp_path = tmp_file.name
-                img.save(tmp_path, format="JPEG")
-            pdf.image(tmp_path, x=10, y=30, w=190)
-            os.remove(tmp_path)
-        else:
-            pdf.image(artwork_url, x=10, y=30, w=190)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+                img.save(tmp.name, format="JPEG")
+                pdf.image(tmp.name, x=10, y=30, w=190)
+        elif artwork_url: pdf.image(artwork_url, x=10, y=30, w=190)
 
     return pdf.output(dest='S').encode('latin-1')
 
@@ -160,128 +111,121 @@ def create_pdf(data_dict, image_file=None, artwork_url=None):
 # --- Main UI ---
 # ==========================================
 st.title("📝 Create New Job Order")
-
 old_order = st.session_state.get('repeat_data', {})
-if old_order:
-    st.info(f"🔄 Repeat Mode Active: Auto-filling based on {old_order.get('order_number')}")
 
-st.markdown("---")
+# --- 1. Customer Info ---
 st.subheader("👤 1. Customer Information")
-col1, col2, col3 = st.columns(3)
-with col1:
+c1, c2, c3 = st.columns(3)
+with c1:
     date = st.date_input("Date", datetime.date.today())
     company_name = st.text_input("Company Name", value=old_order.get("customer_name", ""))
-with col2:
-    job_order_no = st.text_input("Job Order No.", value=auto_job_order_no, disabled=True) 
+with c2:
+    job_order_no = st.text_input("Job Order No.", value=auto_job_order_no, disabled=True)
     customer_id = st.text_input("Customer ID", value=old_order.get("customer_id", ""))
-with col3:
-    po_number = st.text_input("Customer's PO#") 
-    sales_po = st.text_input("Sales PO#") 
+with c3:
+    po_number = st.text_input("Customer's PO#")
+    sales_po = st.text_input("Sales PO#")
 
-col_addr1, col_addr2, col_city = st.columns([2, 2, 1])
-with col_addr1:
-    head_office_address = st.text_input("Head Office Address")
-with col_addr2:
-    delivery_address = st.text_input("Delivery Address")
-with col_city:
-    delivery_city = st.text_input("Delivery City", value=old_order.get("delivery_city", ""))
+ca1, ca2, ca3 = st.columns([2, 2, 1])
+with ca1: head_office = st.text_input("Head Office Address")
+with ca2: delivery_addr = st.text_input("Delivery Address")
+with ca3: delivery_city = st.text_input("Delivery City", value=old_order.get("delivery_city", ""))
 
 st.markdown("---")
+# --- 2. Product Specs ---
 st.subheader("⚙️ 2. Product Specs")
-col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-with col_s1:
-    product_code = st.text_input("Product Code (SAP)", value=old_order.get("product_code", ""))
-with col_s2:
+st.text_input("Product Type", value="BOPP Wrap Around Label", disabled=True)
+
+cs1, cs2, cs3, cs4 = st.columns(4)
+with cs1: product_code = st.text_input("Product Code (SAP)", value=old_order.get("product_code", ""))
+with cs2:
     mat_ops = ["BOPP", "PETG", "PE", "Other"]
     material_type = st.selectbox("Material Type", mat_ops, index=safe_idx(mat_ops, old_order.get("material_type", "BOPP")))
-with col_s3:
-    density_ops = [0.91, 0.92, 1.40]
-    density = st.selectbox("Density", density_ops, index=safe_idx(density_ops, float(old_order.get("density", 0.91))))
-with col_s4:
-    thick_ops = [30, 35, 38, 40]
-    thickness = st.selectbox("Thickness (u)", thick_ops, index=safe_idx(thick_ops, int(old_order.get("thickness_micron", 30))))
+with cs3:
+    den_ops = [0.91, 0.92, 1.40]
+    density = st.selectbox("Density (g/cm3)", den_ops, index=safe_idx(den_ops, float(old_order.get("density", 0.91))))
+with cs4:
+    thk_ops = [30, 35, 38, 40]
+    thickness = st.selectbox("Thickness (u)", thk_ops, index=safe_idx(thk_ops, int(old_order.get("thickness_micron", 30))))
 
-col_s5, col_s6, col_s7, col_s8 = st.columns(4)
-with col_s5:
-    width = st.number_input("Label Width (mm)", min_value=0.0, value=float(old_order.get("label_width_mm", 0.0))) 
-with col_s6:
-    repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0, value=float(old_order.get("repeat_length_mm", 0.0)))
-with col_s7:
-    color_of_film = st.text_input("Film Color", value=old_order.get("color_of_film", "Transparent"))
-with col_s8:
-    colors_no = st.number_input("No. of Colors", min_value=1, value=int(old_order.get("colors_count", 1)))
+cs5, cs6, cs7, cs8 = st.columns(4)
+with cs5: width = st.number_input("Label Width (mm)", value=float(old_order.get("label_width_mm", 0.0)))
+with cs6: repeat = st.number_input("Repeat Length (mm)", value=float(old_order.get("repeat_length_mm", 0.0)))
+with cs7: film_color = st.text_input("Film Color", value=old_order.get("color_of_film", "Transparent"))
+with cs8: colors = st.number_input("No. of Colors", min_value=1, value=int(old_order.get("colors_count", 1)))
 
+cs9, cs10 = st.columns(2)
+with cs9:
+    art_ops = ["NEW", "REPEAT"]
+    art_status = st.selectbox("Artwork Status", art_ops, index=safe_idx(art_ops, "REPEAT" if old_order else "NEW"))
+with cs10: art_no = st.text_input("Artwork No.", value=old_order.get("artwork_number", ""))
+
+# --- Calculator ---
 st.markdown("#### 🧮 Smart Web & Production Calculator")
-col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
-with col_calc1:
-    mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0.0, value=float(old_order.get("mother_roll_length_m", 0.0)))
-with col_calc_rolls:
-    no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=int(old_order.get("no_of_rolls", 1)))
-with col_calc2:
-    mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0.0, value=float(old_order.get("mother_roll_width_mm", 0.0)))
-with col_calc3:
-    no_of_lines = st.number_input("No. of Lines", min_value=1, value=int(old_order.get("no_of_lines", 1)))
+cc1, cc2, cc3, cc4 = st.columns(4)
+with cc1: mr_len = st.number_input("Mother Roll Length (m)", value=float(old_order.get("mother_roll_length_m", 0.0)))
+with cc2: rolls_no = st.number_input("No. of Rolls", min_value=1, value=int(old_order.get("no_of_rolls", 1)))
+with cc3: mr_width = st.number_input("Mother Roll Width (mm)", value=float(old_order.get("mother_roll_width_mm", 0.0)))
+with cc4: lines_no = st.number_input("No. of Lines", min_value=1, value=int(old_order.get("no_of_lines", 1)))
 
-edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0.0, value=float(old_order.get("edge_trim_mm", 24.0)))
+edge_trim = st.number_input("Target Edge Trim (mm)", value=float(old_order.get("edge_trim_mm", 24.0)))
 
-# Calculations
-pcs_per_roll = int((mother_roll_length * 1000) / repeat_length) if mother_roll_length > 0 and repeat_length > 0 else 0
-total_labels_calculated = pcs_per_roll * no_of_lines * no_of_rolls
-st.info(f"💡 Calculated Total Quantity: **{total_labels_calculated:,}** PCS")
+# Results
+pcs_per_roll = int((mr_len * 1000) / repeat) if mr_len > 0 and repeat > 0 else 0
+total_qty_calc = pcs_per_roll * lines_no * rolls_no
+waste_mm = float(mr_width - (width * lines_no)) if mr_width > 0 else 0.0
+unused_waste = float(waste_mm - edge_trim)
+
+col_res1, col_res2, col_res3 = st.columns(3)
+col_res1.metric("Pcs / Roll", f"{pcs_per_roll:,}")
+col_res2.metric("Total Waste (mm)", f"{waste_mm:.2f}")
+col_res3.metric("Unused Waste (mm)", f"{unused_waste:.2f}")
+
+st.info(f"💡 Calculated Total Quantity: **{total_qty_calc:,}** PCS")
 
 st.markdown("---")
+# --- 3. Final Section ---
 st.subheader("📦 3. Quantity, Delivery & Artwork")
-
-uploaded_design = st.file_uploader("🖼️ Upload NEW Design", type=["jpg", "jpeg", "png"])
-final_artwork_path_for_db = ""
-if uploaded_design:
-    st.image(uploaded_design, width=200)
-    final_artwork_path_for_db = "new_upload"
+uploaded_design = st.file_uploader("🖼️ Upload NEW Design", type=["jpg", "png", "jpeg"])
+final_art_url = ""
+if uploaded_design: 
+    st.image(uploaded_design, width=200); final_art_url = "new_upload"
 elif old_order.get('artwork_url'):
-    st.success("🔄 USING EXISTING DESIGN")
-    st.image(old_order.get('artwork_url'), width=200)
-    final_artwork_path_for_db = old_order.get('artwork_url')
+    st.success("🔄 USING EXISTING DESIGN"); st.image(old_order.get('artwork_url'), width=200); final_art_url = old_order.get('artwork_url')
 
-quantity = st.number_input("Required Quantity", min_value=0, value=total_labels_calculated, step=1000) 
+# Sync Quantity
+qty = st.number_input("Required Quantity", min_value=0, value=total_qty_calc, step=1000)
 
-col_q1, col_q2 = st.columns(2)
-with col_q1:
-    packaging = st.text_input("Packaging Notes", value=old_order.get("packaging_notes", "Suitable / As Usual"))
-with col_q2:
-    due_date = st.date_input("Due Date", datetime.date.today())
+cq1, cq2, cq3 = st.columns(3)
+with cq1: packaging = st.text_input("Packaging Notes", value=old_order.get("packaging_notes", "Suitable / As Usual"))
+with cq2: due_date = st.date_input("Due Date", datetime.date.today())
+with cq3: delivery_city_final = st.text_input("Delivery City (Final Check)", value=delivery_city)
 
 notes = st.text_area("Remarks / Notes")
 
+# Save
 if st.button("💾 Save to Cloud & Send", type="primary"):
-    if not company_name:
-        st.error("❌ Customer Name is required.")
+    if not company_name: st.error("❌ Customer Name Required")
     else:
         try:
-            fresh_no = generate_order_number(supabase)
-            db_data = {
-                "order_number": fresh_no, "customer_name": company_name, "customer_po": po_number,
-                "sales_po": sales_po, "customer_id": customer_id, "delivery_city": delivery_city,
-                "product_type": "BOPP Wrap Around Label", "product_code": product_code,
-                "material_type": material_type, "density": float(density), "thickness_micron": float(thickness),
-                "label_width_mm": float(width), "repeat_length_mm": float(repeat_length),
-                "color_of_film": color_of_film, "colors_count": int(colors_no), "artwork_url": final_artwork_path_for_db,
-                "mother_roll_length_m": float(mother_roll_length), "no_of_rolls": int(no_of_rolls),
-                "no_of_lines": int(no_of_lines), "mother_roll_width_mm": float(mother_roll_width),
-                "edge_trim_mm": float(edge_trim), "required_quantity": int(quantity),
-                "packaging_notes": packaging, "due_date": str(due_date), "remarks": notes, "status": "pending"
+            f_no = generate_order_number(supabase)
+            data = {
+                "order_number": f_no, "customer_name": company_name, "customer_id": customer_id,
+                "delivery_city": delivery_city_final, "product_code": product_code, "material_type": material_type,
+                "density": float(density), "thickness_micron": float(thickness), "label_width_mm": float(width),
+                "repeat_length_mm": float(repeat), "color_of_film": film_color, "colors_count": int(colors),
+                "artwork_url": final_art_url, "artwork_status": art_status, "artwork_number": art_no,
+                "mother_roll_length_m": float(mr_len), "no_of_rolls": int(rolls_no), "no_of_lines": int(lines_no),
+                "mother_roll_width_mm": float(mr_width), "edge_trim_mm": float(edge_trim),
+                "required_quantity": int(qty), "packaging_notes": packaging, "due_date": str(due_date),
+                "remarks": notes, "status": "pending"
             }
-            supabase.table("job_orders").insert(db_data).execute()
-            st.success(f"✅ Order {fresh_no} Saved!")
+            supabase.table("job_orders").insert(data).execute()
+            st.success(f"✅ Saved as {f_no}"); st.balloons()
             if 'repeat_data' in st.session_state: del st.session_state['repeat_data']
             st.rerun()
-        except Exception as e:
-            st.error(f"❌ Error: {e}")
+        except Exception as e: st.error(f"❌ Error: {e}")
 
-pdf_data = {
-    "Job Order No": job_order_no, "Date": str(date), "Customer Name": company_name,
-    "Customer ID": customer_id, "Delivery Address": f"{delivery_address}, {delivery_city}",
-    "Material Type": material_type, "Thickness (u)": str(thickness), "Density (g/cm3)": str(density),
-    "Required Quantity": str(quantity), "Due Date": str(due_date), "Packaging": packaging, "Remarks / Notes": notes
-}
-
-st.download_button("📄 Export PDF", data=create_pdf(pdf_data, uploaded_design, final_artwork_path_for_db), file_name=f"{job_order_no}.pdf")
+# PDF
+pdf_data = {"Job Order No": job_order_no, "Date": str(date), "Customer Name": company_name, "Customer ID": customer_id, "Delivery Address": f"{delivery_addr}, {delivery_city_final}", "Material Type": material_type, "Thickness (u)": str(thickness), "Density (g/cm3)": str(density), "Required Quantity": str(qty), "Due Date": str(due_date), "Packaging": packaging, "Remarks / Notes": notes}
+st.download_button("📄 Export PDF", data=create_pdf(pdf_data, uploaded_design, final_art_url if final_art_url.startswith("http") else None), file_name=f"{job_order_no}.pdf")
