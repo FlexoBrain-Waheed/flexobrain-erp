@@ -17,7 +17,7 @@ auth.require_role(["production", "admin"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 05 - FlexoBrain Technical Tabs</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 06 - FlexoBrain Technical Tabs & Material Roll</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -136,7 +136,7 @@ def display_order_card(order, current_tab):
         # 3. Material Requisitions
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("#### 📥 Material Requisitions")
-        btn_col1, btn_col2, btn_col3 = st.columns(3)
+        btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
         
         with btn_col1:
             if order.get("artwork_status") == "NEW":
@@ -149,6 +149,9 @@ def display_order_card(order, current_tab):
             
         with btn_col3:
             st.button("🧻 Generate Tape Requisition", key=f"tape_req_{order['id']}", use_container_width=True)
+            
+        with btn_col4:
+            st.button("📦 Generate Material Roll Requisition", key=f"roll_req_{order['id']}", use_container_width=True)
             
         st.markdown("---")
         
