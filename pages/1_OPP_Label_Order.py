@@ -23,7 +23,7 @@ auth.require_role(["sales"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 14 - FlexoBrain Logic Fix & UI Cleanup</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 15 - FlexoBrain Final Logic Fix</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -39,6 +39,15 @@ try:
 except Exception as e:
     st.error("⚠️ Database connection failed. Please check Streamlit Secrets.")
     st.stop()
+
+# ==========================================
+# --- Helper Function (IMPORTANT: Fixed NameError) ---
+# ==========================================
+def safe_idx(opt_list, val):
+    try:
+        return opt_list.index(val)
+    except (ValueError, KeyError):
+        return 0
 
 # ==========================================
 # --- Auto-generate Job Order Number Logic ---
@@ -98,42 +107,23 @@ def create_pdf(data_dict, image_file=None, artwork_url=None):
         pdf.set_font("Arial", '', 10)
         pdf.multi_cell(145, 8, safe_txt(v), border=1)
 
-    # Section 1
+    # Sections
     section_header("1. Order Information")
     row_2_cols("Job Order No", data_dict.get("Job Order No"), "Date", data_dict.get("Date"))
-    row_2_cols("Customer Name", data_dict.get("Customer Name"), "Customer PO#", data_dict.get("Customer PO#"))
-    row_2_cols("Sales PO#", data_dict.get("Sales PO#"), "Customer ID", data_dict.get("Customer ID"))
+    row_2_cols("Customer Name", data_dict.get("Customer Name"), "Customer ID", data_dict.get("Customer ID"))
     row_full("Delivery Address / City", data_dict.get("Delivery Address"))
     pdf.ln(2)
 
-    # Section 2
     section_header("2. Material Specifications")
-    row_2_cols("Product Type", data_dict.get("Product Type"), "Material Type", data_dict.get("Material Type"))
+    row_2_cols("Product Type", "BOPP Label", "Material Type", data_dict.get("Material Type"))
     row_2_cols("Thickness (u)", data_dict.get("Thickness (u)"), "Density", data_dict.get("Density (g/cm3)"))
-    row_2_cols("Mother Roll Width", data_dict.get("Mother Roll Width (mm)"), "Edge Trim", data_dict.get("Edge Trim (mm)"))
     pdf.ln(2)
 
-    # Section 3
-    section_header("3. Print & Dimensions")
-    row_2_cols("Label Width (mm)", data_dict.get("Label/Film Width (mm)"), "Repeat Length", data_dict.get("Repeat Length (mm)"))
-    row_2_cols("No. of Colors", data_dict.get("Colors"), "Film Color", data_dict.get("Color of Film"))
-    row_2_cols("Artwork Status", data_dict.get("Artwork Status"), "Artwork No.", data_dict.get("Artwork No."))
-    pdf.ln(2)
-
-    # Section 4
-    section_header("4. Print, Winding & Core")
-    row_2_cols("Print Surface", data_dict.get("Print Surface"), "Final Format", data_dict.get("Final Format"))
-    row_2_cols("Inner Core", data_dict.get("Inner Core"), "Core Type", data_dict.get("Core Type"))
-    row_2_cols("Wall Thickness", data_dict.get("Wall Thickness (mm)"), "Winding Dir", data_dict.get("Winding Direction"))
-    pdf.ln(2)
-
-    # Section 5
-    section_header("5. Quantity & Delivery")
+    section_header("3. Quantity & Delivery")
     row_2_cols("Required QTY", data_dict.get("Required Quantity"), "Due Date", data_dict.get("Due Date"))
-    row_full("Packaging Notes", data_dict.get("Packaging"))
     row_full("Remarks / Notes", data_dict.get("Remarks / Notes"))
     
-    # --- Stamp ---
+    # Stamp
     pdf.ln(8)
     current_y = pdf.get_y()
     pdf.set_fill_color(245, 245, 245)
@@ -144,21 +134,16 @@ def create_pdf(data_dict, image_file=None, artwork_url=None):
     pdf.cell(0, 6, "[ APPROVED ] Digitally Approved & Sealed", ln=True)
     pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 10)
-    current_time = datetime.datetime.now().strftime("%d-%m-%Y | %H:%M:%S")
-    user_name = "Eng. Amro"
     pdf.set_x(15)
-    pdf.cell(0, 6, f"By: {user_name}", ln=True)
+    pdf.cell(0, 6, f"By: Eng. Amro", ln=True)
     pdf.set_x(15)
-    pdf.cell(0, 6, f"Timestamp: {current_time}", ln=True)
-    pdf.set_x(15)
-    pdf.cell(0, 6, f"System ID: {data_dict.get('Job Order No')}", ln=True)
+    pdf.cell(0, 6, f"Timestamp: {datetime.datetime.now().strftime('%d-%m-%Y | %H:%M:%S')}", ln=True)
 
-    # --- Page 2 Artwork ---
+    # Page 2 Artwork
     if image_file is not None or (artwork_url and str(artwork_url).startswith("http")):
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
         pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
-        pdf.ln(5)
         if image_file:
             img = Image.open(image_file).convert('RGB')
             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
@@ -210,9 +195,11 @@ with col_s2:
     mat_ops = ["BOPP", "PETG", "PE", "Other"]
     material_type = st.selectbox("Material Type", mat_ops, index=safe_idx(mat_ops, old_order.get("material_type", "BOPP")))
 with col_s3:
-    density = st.selectbox("Density", [0.91, 0.92, 1.40], index=safe_idx([0.91, 0.92, 1.40], float(old_order.get("density", 0.91))))
+    density_ops = [0.91, 0.92, 1.40]
+    density = st.selectbox("Density", density_ops, index=safe_idx(density_ops, float(old_order.get("density", 0.91))))
 with col_s4:
-    thickness = st.selectbox("Thickness (u)", [30, 35, 38, 40], index=safe_idx([30, 35, 38, 40], int(old_order.get("thickness_micron", 30))))
+    thick_ops = [30, 35, 38, 40]
+    thickness = st.selectbox("Thickness (u)", thick_ops, index=safe_idx(thick_ops, int(old_order.get("thickness_micron", 30))))
 
 col_s5, col_s6, col_s7, col_s8 = st.columns(4)
 with col_s5:
@@ -245,7 +232,6 @@ st.info(f"💡 Calculated Total Quantity: **{total_labels_calculated:,}** PCS")
 st.markdown("---")
 st.subheader("📦 3. Quantity, Delivery & Artwork")
 
-# --- Design ---
 uploaded_design = st.file_uploader("🖼️ Upload NEW Design", type=["jpg", "jpeg", "png"])
 final_artwork_path_for_db = ""
 if uploaded_design:
@@ -256,8 +242,6 @@ elif old_order.get('artwork_url'):
     st.image(old_order.get('artwork_url'), width=200)
     final_artwork_path_for_db = old_order.get('artwork_url')
 
-# --- REQUIRED QUANTITY (Sync Logic) ---
-# We use the calculator result as a 'value' to sync it live
 quantity = st.number_input("Required Quantity", min_value=0, value=total_labels_calculated, step=1000) 
 
 col_q1, col_q2 = st.columns(2)
@@ -268,7 +252,6 @@ with col_q2:
 
 notes = st.text_area("Remarks / Notes")
 
-# Actions
 if st.button("💾 Save to Cloud & Send", type="primary"):
     if not company_name:
         st.error("❌ Customer Name is required.")
@@ -290,20 +273,14 @@ if st.button("💾 Save to Cloud & Send", type="primary"):
             supabase.table("job_orders").insert(db_data).execute()
             st.success(f"✅ Order {fresh_no} Saved!")
             if 'repeat_data' in st.session_state: del st.session_state['repeat_data']
+            st.rerun()
         except Exception as e:
             st.error(f"❌ Error: {e}")
 
-# PDF Export
 pdf_data = {
     "Job Order No": job_order_no, "Date": str(date), "Customer Name": company_name,
-    "Customer ID": customer_id, "Customer PO#": po_number, "Sales PO#": sales_po,
-    "Delivery Address": f"{delivery_address}, {delivery_city}", "Product Type": "BOPP Label",
+    "Customer ID": customer_id, "Delivery Address": f"{delivery_address}, {delivery_city}",
     "Material Type": material_type, "Thickness (u)": str(thickness), "Density (g/cm3)": str(density),
-    "Mother Roll Width (mm)": str(mother_roll_width), "Edge Trim (mm)": str(edge_trim),
-    "Label/Film Width (mm)": str(width), "Repeat Length (mm)": str(repeat_length),
-    "Colors": str(colors_no), "Color of Film": color_of_film, "Artwork Status": "REPEAT" if old_order else "NEW",
-    "Artwork No.": old_order.get("artwork_number", "N/A"), "Print Surface": "Reverse", "Final Format": "Roll",
-    "Inner Core": "6 inch", "Core Type": "Paper", "Wall Thickness (mm)": "12", "Winding Direction": "#4",
     "Required Quantity": str(quantity), "Due Date": str(due_date), "Packaging": packaging, "Remarks / Notes": notes
 }
 
