@@ -14,7 +14,7 @@ ROLE_PASSWORDS = {
 # ==========================================
 def login_form():
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🏭 NexFlexo ERP</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🧠 FlexoBrain ERP</h2>", unsafe_allow_html=True)
     st.markdown("<p style='text-align: center; color: gray;'>Please enter your department password</p>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.5, 1])
