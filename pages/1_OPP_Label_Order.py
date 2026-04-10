@@ -23,7 +23,7 @@ auth.require_role(["sales"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 08 - Cloud Connected</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 09 - FlexoBrain Digital Stamp</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -63,7 +63,7 @@ def create_pdf(data_dict, image_file=None):
     pdf.add_page()
     
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Sales Job Order - BOPP Wrap Around Label", ln=True, align='C')
+    pdf.cell(0, 10, f"FlexoBrain Job Order: {data_dict.get('Job Order No')}", ln=True, align='C')
     pdf.ln(2)
     
     def safe_txt(txt):
@@ -124,21 +124,42 @@ def create_pdf(data_dict, image_file=None):
     row_2_cols("Required QTY", data_dict.get("Required Quantity"), "Due Date", data_dict.get("Due Date"))
     row_2_cols("Packaging", data_dict.get("Packaging"), "Delivery City", data_dict.get("Delivery City"))
     row_full("Remarks / Notes", data_dict.get("Remarks / Notes"))
-    pdf.ln(4)
-
-    # Section 6
-    pdf.set_fill_color(240, 240, 240)
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(47.5, 8, "Sales", border=1, align='C', fill=True)
-    pdf.cell(47.5, 8, "Production", border=1, align='C', fill=True)
-    pdf.cell(47.5, 8, "QC", border=1, align='C', fill=True)
-    pdf.cell(47.5, 8, "Manager", border=1, align='C', fill=True, ln=True)
     
-    pdf.cell(47.5, 15, "", border=1)
-    pdf.cell(47.5, 15, "", border=1)
-    pdf.cell(47.5, 15, "", border=1)
-    pdf.cell(47.5, 15, "", border=1, ln=True)
+    # ==========================================
+    # --- THE DIGITAL STAMP ---
+    # ==========================================
+    pdf.ln(8)
+    current_y = pdf.get_y()
+    
+    # Draw stamp background (light gray rectangle)
+    pdf.set_fill_color(245, 245, 245)
+    pdf.rect(10, current_y, 190, 35, 'F')
+    
+    # Approval mark
+    pdf.set_xy(15, current_y + 5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_text_color(0, 128, 0) # Green for approval
+    pdf.cell(0, 6, "[ APPROVED ] Digitally Approved & Sealed", ln=True)
+    
+    # Retrieve automated data
+    pdf.set_text_color(0, 0, 0) # Return to black
+    pdf.set_font("Arial", '', 10)
+    
+    current_time = datetime.datetime.now().strftime("%d-%m-%Y | %H:%M:%S")
+    # Retrieve current username from session state
+    user_name = st.session_state.get("username", "FlexoBrain Sales Dept.")
+    order_number = data_dict.get("Job Order No")
+    
+    pdf.set_x(15)
+    pdf.cell(0, 6, f"By: {user_name}", ln=True)
+    pdf.set_x(15)
+    pdf.cell(0, 6, f"Timestamp: {current_time}", ln=True)
+    pdf.set_x(15)
+    pdf.cell(0, 6, f"System ID: {order_number}", ln=True)
 
+    # ==========================================
+    # --- PAGE 2: ARTWORK (If uploaded) ---
+    # ==========================================
     if image_file is not None:
         try:
             img = Image.open(image_file).convert('RGB')
