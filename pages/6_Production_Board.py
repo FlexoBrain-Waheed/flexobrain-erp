@@ -1,5 +1,6 @@
 import streamlit as st
 import sys
+import json
 from pathlib import Path
 from fpdf import FPDF
 from supabase import create_client, Client
@@ -17,7 +18,7 @@ auth.require_role(["production", "admin"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 06 - FlexoBrain Technical Tabs & Material Roll</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 07 - FlexoBrain Live DB & Requisitions</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -35,7 +36,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# --- PDF Generator for Production Ticket ---
+# --- PDF Generators ---
 # ==========================================
 def create_production_pdf(order):
     pdf = FPDF()
@@ -47,7 +48,7 @@ def create_production_pdf(order):
     def safe_txt(txt):
         return str(txt).encode('latin-1', 'replace').decode('latin-1')
         
-    exclude_keys = ['id', 'created_at', 'status']
+    exclude_keys = ['id', 'created_at', 'status', 'technical_details']
     for key, value in order.items():
         if key not in exclude_keys and value is not None and value != "":
             clean_key = str(key).replace('_', ' ').title()
@@ -62,6 +63,27 @@ def create_production_pdf(order):
     pdf.cell(63, 15, "Operator: _____________", border=0)
     pdf.cell(63, 15, "QC: _____________", border=0)
     pdf.cell(63, 15, "Manager: _____________", border=0, ln=True)
+    return pdf.output(dest='S').encode('latin-1')
+
+def create_requisition_pdf(order, req_type):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(0, 10, f"FlexoBrain Material Requisition: {req_type}", ln=True, align='C')
+    pdf.ln(5)
+    
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, f"Job Order: {order.get('order_number')}", ln=True)
+    pdf.cell(0, 8, f"Customer: {order.get('customer_name')}", ln=True)
+    pdf.cell(0, 8, f"Material Required: {req_type}", ln=True)
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", '', 11)
+    pdf.multi_cell(0, 8, "Please issue the requested materials for the aforementioned job order immediately to avoid production delays. All items must be checked by QC upon delivery to the shop floor.")
+    
+    pdf.ln(15)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, "Warehouse / Pre-press Signature: _______________________", ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
@@ -133,47 +155,59 @@ def display_order_card(order, current_tab):
                     st.selectbox("Tape Brand", ["tesa", "3M", "Lohmann", "Biessse", "Other"], key=f"tape_brand_{order['id']}_{i}")
                     st.selectbox("Tape Hardness", ["Soft", "Medium Soft", "Medium", "Medium Hard", "Hard"], key=f"tape_hard_{order['id']}_{i}")
         
-        # 3. Material Requisitions
+        # 3. Material Requisitions (PDF Generators)
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("#### 📥 Material Requisitions")
         btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
         
         with btn_col1:
-            if order.get("artwork_status") == "NEW":
-                st.button("📑 Generate New Cliché Request", key=f"cliche_new_{order['id']}", use_container_width=True)
-            else:
-                st.button("📂 Request Cliché from Archive", key=f"cliche_arch_{order['id']}", use_container_width=True)
+            req_type = "New Cliche" if order.get("artwork_status") == "NEW" else "Archive Cliche"
+            st.download_button(label=f"📑 Request {req_type}", data=create_requisition_pdf(order, "Cliché / Plates"), file_name=f"Cliche_Req_{order['order_number']}.pdf", mime="application/pdf", key=f"cliche_{order['id']}", use_container_width=True)
                 
         with btn_col2:
-            st.button("💧 Generate Ink Requisition", key=f"ink_req_{order['id']}", use_container_width=True)
+            st.download_button(label="💧 Generate Ink Requisition", data=create_requisition_pdf(order, "Ink & Solvents"), file_name=f"Ink_Req_{order['order_number']}.pdf", mime="application/pdf", key=f"ink_req_{order['id']}", use_container_width=True)
             
         with btn_col3:
-            st.button("🧻 Generate Tape Requisition", key=f"tape_req_{order['id']}", use_container_width=True)
+            st.download_button(label="🧻 Generate Tape Requisition", data=create_requisition_pdf(order, "Mounting Tape"), file_name=f"Tape_Req_{order['order_number']}.pdf", mime="application/pdf", key=f"tape_req_{order['id']}", use_container_width=True)
             
         with btn_col4:
-            st.button("📦 Generate Material Roll Requisition", key=f"roll_req_{order['id']}", use_container_width=True)
+            st.download_button(label="📦 Generate Roll Requisition", data=create_requisition_pdf(order, "Raw Material Rolls"), file_name=f"Roll_Req_{order['order_number']}.pdf", mime="application/pdf", key=f"roll_req_{order['id']}", use_container_width=True)
             
         st.markdown("---")
         
-        # 4. Actions
+        # 4. Actions & Database Save Logic
         action1, action2 = st.columns(2)
         with action1:
             if current_tab == "pending":
                 if st.button("🚀 Confirm Setup & Start Production", key=f"start_{order['id']}", type="primary"):
-                    supabase.table("job_orders").update({"status": "in_production"}).eq("id", order['id']).execute()
+                    # Collect all technical data from the tabs dynamically
+                    tech_data = {}
+                    for i in range(1, colors_count + 1):
+                        tech_data[f"Unit_{i}"] = {
+                            "Color": st.session_state.get(f"color_name_{order['id']}_{i}", ""),
+                            "Viscosity": st.session_state.get(f"visc_{order['id']}_{i}", ""),
+                            "Anilox_Brand": st.session_state.get(f"anx_brand_{order['id']}_{i}", ""),
+                            "Anilox_Vol": st.session_state.get(f"vol_{order['id']}_{i}", 0),
+                            "Tape_Hardness": st.session_state.get(f"tape_hard_{order['id']}_{i}", "")
+                        }
+                    # Save to Supabase
+                    supabase.table("job_orders").update({
+                        "status": "in_production",
+                        "technical_details": tech_data
+                    }).eq("id", order['id']).execute()
                     st.rerun()
+                    
             elif current_tab == "in_prod":
                 if st.button("✅ Mark as Completed", key=f"comp_{order['id']}", type="primary"):
                     supabase.table("job_orders").update({"status": "completed"}).eq("id", order['id']).execute()
                     st.rerun()
         with action2:
-            pdf_bytes = create_production_pdf(order)
             st.download_button(
-                label="🖨️ Print Job Ticket",
-                data=pdf_bytes,
+                label="🖨️ Print Full Job Ticket",
+                data=create_production_pdf(order),
                 file_name=f"Production_Ticket_{order['order_number']}.pdf",
                 mime="application/pdf",
-                key=f"print_{order['id']}"
+                key=f"print_main_{order['id']}"
             )
 
 # --- Populate Tabs ---
