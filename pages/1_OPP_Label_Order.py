@@ -23,7 +23,7 @@ auth.require_role(["sales"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 09 - FlexoBrain Digital Stamp</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 10 - FlexoBrain Digital Stamp & Validation</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -43,17 +43,25 @@ except Exception as e:
 # ==========================================
 # --- Auto-generate Job Order Number Logic ---
 # ==========================================
-if 'last_sequence' not in st.session_state:
-    st.session_state.last_sequence = {}
+def generate_order_number(supabase_client):
+    today_str = datetime.date.today().strftime("%Y%m%d")
+    prefix = f"BOPP-{today_str}-"
+    try:
+        response = supabase_client.table("job_orders").select("order_number").execute()
+        seqs = []
+        for row in response.data:
+            if row.get('order_number', '').startswith(prefix):
+                try:
+                    seq = int(row['order_number'].split('-')[-1])
+                    seqs.append(seq)
+                except:
+                    pass
+        next_seq = max(seqs) + 1 if seqs else 1
+        return f"{prefix}{next_seq:03d}"
+    except Exception as e:
+        return f"{prefix}999"
 
-today_str = datetime.date.today().strftime("%Y%m%d")
-seq_key = f"BOPP_{today_str}"
-
-if seq_key not in st.session_state.last_sequence:
-    st.session_state.last_sequence[seq_key] = 1
-
-current_seq = st.session_state.last_sequence[seq_key]
-auto_job_order_no = f"BOPP-{today_str}-{current_seq:03d}"
+auto_job_order_no = generate_order_number(supabase)
 
 # ==========================================
 # --- Functions for PDF Generation ---
@@ -146,8 +154,7 @@ def create_pdf(data_dict, image_file=None):
     pdf.set_font("Arial", '', 10)
     
     current_time = datetime.datetime.now().strftime("%d-%m-%Y | %H:%M:%S")
-    # Retrieve current username from session state
-    user_name = st.session_state.get("username", "FlexoBrain Sales Dept.")
+    user_name = "Eng. Amro" # Hardcoded as requested
     order_number = data_dict.get("Job Order No")
     
     pdf.set_x(15)
@@ -277,6 +284,13 @@ with col_calc6:
 with col_calc7:
     st.number_input("Unused Waste (mm)", value=unused_waste, disabled=True)
 
+# Validation Error for Width
+width_error = False
+required_roll_width = (width * no_of_lines) + edge_trim
+if mother_roll_width > 0 and required_roll_width > mother_roll_width:
+    st.error(f"❌ Engineering Alert: Required production width ({required_roll_width} mm) exceeds Mother Roll Width ({mother_roll_width} mm). Please reduce No. of Lines or adjust widths.")
+    width_error = True
+
 total_labels_calculated = 0
 if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0 and no_of_rolls > 0:
     total_labels_calculated = pcs_per_roll * no_of_lines * no_of_rolls
@@ -339,13 +353,18 @@ btn_col1, btn_col2, btn_col3 = st.columns(3)
 
 with btn_col1:
     if st.button("💾 Save to Cloud & Send", type="primary", use_container_width=True):
-        if not company_name:
+        if width_error:
+            st.error("❌ Cannot save. Please fix the width calculation errors first.")
+        elif not company_name:
             st.error("❌ Please enter Customer Name before saving.")
         else:
             try:
+                # 1. Generate Fresh Number on Save
+                fresh_order_no = generate_order_number(supabase)
+                
                 # Prepare data exactly matching Supabase columns
                 db_data = {
-                    "order_number": job_order_no,
+                    "order_number": fresh_order_no,
                     "customer_name": company_name,
                     "customer_po": po_number,
                     "sales_po": sales_po,
@@ -380,10 +399,7 @@ with btn_col1:
                 # Insert command
                 response = supabase.table("job_orders").insert(db_data).execute()
                 
-                # Update Sequence
-                st.session_state.last_sequence[seq_key] += 1
-                
-                st.success("✅ Order successfully saved to Cloud Database!")
+                st.success(f"✅ Order successfully saved to Cloud Database as {fresh_order_no}!")
                 st.toast("✅ Sent to Production Board!", icon="☁️")
                 st.balloons()
             except Exception as e:
@@ -402,6 +418,6 @@ with btn_col2:
 with btn_col3:
     if st.button("🗑️ Reset Form", use_container_width=True):
         for key in list(st.session_state.keys()):
-            if key not in ["authenticated", "role", "last_sequence"]:
+            if key not in ["authenticated", "role"]:
                 del st.session_state[key]
         st.rerun()
