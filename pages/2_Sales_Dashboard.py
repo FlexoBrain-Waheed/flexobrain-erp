@@ -15,9 +15,6 @@ import auth
 auth.require_role(["sales", "admin"])
 auth.logout_button()
 
-# --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 01 - FlexoBrain Sales Hub</div>", unsafe_allow_html=True)
-
 # ==========================================
 # --- Supabase Database Connection ---
 # ==========================================
@@ -54,7 +51,7 @@ if not orders:
     st.info("No orders found in the system yet.")
     st.stop()
 
-# --- KPIs (Key Performance Indicators) ---
+# --- KPIs ---
 total_orders = len(orders)
 pending_count = len([o for o in orders if o.get('status') == 'pending'])
 in_prod_count = len([o for o in orders if o.get('status') == 'in_production'])
@@ -69,9 +66,7 @@ col4.metric("🟢 Ready / Completed", completed_count)
 st.markdown("---")
 st.subheader("📋 Order Live Tracking")
 
-# --- Order Cards ---
 for order in orders:
-    # Determine the status icon
     status = order.get('status', 'pending')
     if status == 'pending':
         status_ui = "🟡 Pending"
@@ -82,9 +77,7 @@ for order in orders:
     else:
         status_ui = f"⚪ {status}"
 
-    # Expandable Order Card
-    with st.expander(f"📦 Order: {order['order_number']} | Client: {order.get('customer_name', 'Unknown')} | Status: {status_ui}"):
-        
+    with st.expander(f"📦 Order: {order.get('order_number', 'N/A')} | Client: {order.get('customer_name', 'Unknown')} | Status: {status_ui}"):
         c1, c2, c3, c4 = st.columns(4)
         c1.write(f"**Product:** {order.get('product_type')}")
         c2.write(f"**Material:** {order.get('material_type')} ({order.get('thickness_micron')}µ)")
@@ -93,10 +86,8 @@ for order in orders:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Repeat Order Button
         action_col, _ = st.columns([1, 4])
         with action_col:
             if st.button("🔁 Repeat Order", key=f"repeat_{order['id']}", type="primary", use_container_width=True):
-                # Save the old order data in the browser's session state
                 st.session_state['repeat_data'] = order
                 st.success("✅ Order data copied! Please navigate to the 'Create Order' page to submit this Repeat Job.")
