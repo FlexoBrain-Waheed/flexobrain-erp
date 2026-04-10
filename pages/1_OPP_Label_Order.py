@@ -23,7 +23,7 @@ auth.require_role(["sales"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 12 - FlexoBrain Repeat Order & Smart Artwork</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 13 - FlexoBrain Smart Calculator & PDF Sync</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -66,7 +66,7 @@ auto_job_order_no = generate_order_number(supabase)
 # ==========================================
 # --- Functions for PDF Generation ---
 # ==========================================
-def create_pdf(data_dict, image_file=None):
+def create_pdf(data_dict, image_file=None, artwork_url=None):
     pdf = FPDF()
     pdf.add_page()
     
@@ -139,22 +139,22 @@ def create_pdf(data_dict, image_file=None):
     pdf.ln(8)
     current_y = pdf.get_y()
     
-    # Draw stamp background (light gray rectangle)
+    # Draw stamp background
     pdf.set_fill_color(245, 245, 245)
     pdf.rect(10, current_y, 190, 35, 'F')
     
     # Approval mark
     pdf.set_xy(15, current_y + 5)
     pdf.set_font("Arial", 'B', 12)
-    pdf.set_text_color(0, 128, 0) # Green for approval
+    pdf.set_text_color(0, 128, 0)
     pdf.cell(0, 6, "[ APPROVED ] Digitally Approved & Sealed", ln=True)
     
     # Retrieve automated data
-    pdf.set_text_color(0, 0, 0) # Return to black
+    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 10)
     
     current_time = datetime.datetime.now().strftime("%d-%m-%Y | %H:%M:%S")
-    user_name = "Eng. Amro" # Hardcoded as requested
+    user_name = "Eng. Amro"
     order_number = data_dict.get("Job Order No")
     
     pdf.set_x(15)
@@ -165,7 +165,7 @@ def create_pdf(data_dict, image_file=None):
     pdf.cell(0, 6, f"System ID: {order_number}", ln=True)
 
     # ==========================================
-    # --- PAGE 2: ARTWORK (If uploaded) ---
+    # --- PAGE 2: ARTWORK ---
     # ==========================================
     if image_file is not None:
         try:
@@ -182,6 +182,17 @@ def create_pdf(data_dict, image_file=None):
             os.remove(tmp_path)
         except Exception:
             pass
+    elif artwork_url and str(artwork_url).startswith("http"):
+        try:
+            pdf.add_page()
+            pdf.set_font("Arial", 'B', 16)
+            pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
+            pdf.ln(5)
+            pdf.image(artwork_url, x=10, y=30, w=190)
+        except Exception:
+            pdf.set_font("Arial", '', 10)
+            pdf.set_text_color(255, 0, 0)
+            pdf.cell(0, 10, "⚠️ Note: Existing artwork image could not be embedded.", ln=True, align='C')
 
     return pdf.output(dest='S').encode('latin-1')
 
@@ -215,8 +226,8 @@ with col2:
     job_order_no = st.text_input("Job Order No.", value=auto_job_order_no, disabled=True) 
     customer_id = st.text_input("Customer ID", value=old_order.get("customer_id", ""), key="in_cust_id")
 with col3:
-    po_number = st.text_input("Customer's PO#", key="in_po") # Left empty intentionally for new orders
-    sales_po = st.text_input("Sales PO#", key="in_sales_po") # Left empty intentionally for new orders
+    po_number = st.text_input("Customer's PO#", key="in_po") 
+    sales_po = st.text_input("Sales PO#", key="in_sales_po") 
 
 col_addr1, col_addr2 = st.columns(2)
 with col_addr1:
@@ -284,13 +295,13 @@ with col_d4:
 st.markdown("#### 🧮 Smart Web & Production Calculator")
 col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
 with col_calc1:
-    mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0, key="in_mr_len")
+    mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0.0, value=float(old_order.get("mother_roll_length_m", 0.0)), key="in_mr_len")
 with col_calc_rolls:
-    no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=1, key="in_rolls")
+    no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=int(old_order.get("no_of_rolls", 1)), key="in_rolls")
 with col_calc2:
     mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0.0, value=float(old_order.get("mother_roll_width_mm", 0.0)), key="in_mr_width")
 with col_calc3:
-    no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=1, key="in_lines")
+    no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=int(old_order.get("no_of_lines", 1)), key="in_lines")
     
 col_calc4, col_calc5, col_calc6, col_calc7 = st.columns(4)
 with col_calc4:
@@ -332,13 +343,10 @@ final_artwork_path_for_db = None
 
 if uploaded_design is not None:
     st.image(uploaded_design, caption="New Artwork Uploaded", width=200)
-    # Placeholder for actual upload logic if needed in the future
     final_artwork_path_for_db = "new_upload_provided" 
 elif old_order and old_order.get('artwork_url'):
-    # If no new file is uploaded, but it's a repeat order with an existing URL
     old_url = old_order.get('artwork_url')
     st.success("🔄 USING EXISTING DESIGN")
-    # Note: st.image can load a URL directly if the URL is valid/public
     try:
         st.image(old_url, caption=f"Existing design from order {old_order.get('order_number')}", width=200)
     except Exception:
@@ -349,7 +357,9 @@ elif old_order and old_order.get('artwork_url'):
 
 col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
 with col_q1:
-    quantity = st.number_input("Required Quantity", min_value=0, key="in_qty") 
+    # Auto-fill Logic: Prefill with calculated qty if > 0, otherwise use old order qty
+    default_qty = int(total_labels_calculated) if total_labels_calculated > 0 else int(old_order.get("required_quantity", 0))
+    quantity = st.number_input("Required Quantity", min_value=0, value=default_qty, step=1000, key="in_qty") 
 with col_q2:
     packaging = st.text_input("Packaging", value=old_order.get("packaging_notes", "Suitable / As Usual"), key="in_pack")
 with col_q3:
@@ -427,13 +437,16 @@ with btn_col1:
                     "colors_count": int(colors_no) if colors_no else 0,
                     "artwork_status": artwork,
                     "artwork_number": artwork_no,
-                    "artwork_url": final_artwork_path_for_db if final_artwork_path_for_db else "", # <-- Added Artwork URL
+                    "artwork_url": final_artwork_path_for_db if final_artwork_path_for_db else "",
                     "print_surface": print_position,
                     "final_format": final_format,
                     "inner_core": inner_core,
                     "core_type": core_type,
                     "core_wall_thickness_mm": float(core_thickness) if core_thickness else 0.0,
                     "winding_direction": winding_direction,
+                    "mother_roll_length_m": float(mother_roll_length) if mother_roll_length else 0.0,
+                    "no_of_rolls": int(no_of_rolls) if no_of_rolls else 0,
+                    "no_of_lines": int(no_of_lines) if no_of_lines else 0,
                     "mother_roll_width_mm": float(mother_roll_width) if mother_roll_width else 0.0,
                     "edge_trim_mm": float(edge_trim) if edge_trim else 0.0,
                     "required_quantity": int(quantity) if quantity else 0,
@@ -458,7 +471,7 @@ with btn_col1:
                 st.error(f"❌ Database Error: {str(e)}")
 
 with btn_col2:
-    pdf_file = create_pdf(pdf_data, image_file=uploaded_design)
+    pdf_file = create_pdf(pdf_data, image_file=uploaded_design, artwork_url=final_artwork_path_for_db)
     st.download_button(
         label="📄 Export PDF",
         data=pdf_file,
