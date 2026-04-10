@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import sys
 from pathlib import Path
 from fpdf import FPDF
@@ -17,7 +18,7 @@ auth.require_role(["production", "admin"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 03 - Full Kanban & Print</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 04 - Technical UI Draft</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -31,44 +32,8 @@ def init_connection():
 try:
     supabase: Client = init_connection()
 except Exception as e:
-    st.error("⚠️ Database connection failed. Please check Streamlit Secrets.")
+    st.error("⚠️ Database connection failed.")
     st.stop()
-
-# ==========================================
-# --- PDF Generator for Production Ticket ---
-# ==========================================
-def create_production_pdf(order):
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # Header
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, f"Production Job Ticket: {order.get('order_number', '')}", ln=True, align='C')
-    pdf.ln(5)
-    
-    def safe_txt(txt):
-        return str(txt).encode('latin-1', 'replace').decode('latin-1')
-        
-    pdf.set_font("Arial", 'B', 10)
-    
-    # Loop through important dictionary items
-    exclude_keys = ['id', 'created_at', 'status']
-    for key, value in order.items():
-        if key not in exclude_keys and value is not None and value != "":
-            clean_key = str(key).replace('_', ' ').title()
-            pdf.set_font("Arial", 'B', 10)
-            pdf.cell(50, 8, safe_txt(f"{clean_key}:"), border=1)
-            pdf.set_font("Arial", '', 10)
-            pdf.cell(140, 8, safe_txt(str(value))[:80], border=1, ln=True)
-
-    pdf.ln(10)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 10, "Signatures:", ln=True)
-    pdf.cell(63, 15, "Operator: _____________", border=0)
-    pdf.cell(63, 15, "QC: _____________", border=0)
-    pdf.cell(63, 15, "Manager: _____________", border=0, ln=True)
-
-    return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
 # --- Main UI: Production Kanban Board ---
@@ -76,94 +41,102 @@ def create_production_pdf(order):
 st.title("🏭 Production Kanban Board")
 st.markdown("---")
 
-# --- Fetch ALL Orders from Supabase ---
 def fetch_all_orders():
     try:
         response = supabase.table("job_orders").select("*").order("id", desc=True).execute()
         return response.data
     except Exception as e:
-        st.error(f"❌ Error fetching data: {str(e)}")
         return []
 
 all_orders = fetch_all_orders()
 
-# Filter orders by status
 pending_orders = [o for o in all_orders if o.get('status') == 'pending']
 in_production_orders = [o for o in all_orders if o.get('status') == 'in_production']
 completed_orders = [o for o in all_orders if o.get('status') == 'completed']
 
-# --- UI Tabs ---
 tab1, tab2, tab3 = st.tabs(["📥 Pending (New)", "⚙️ In Production", "✅ Completed"])
 
+# --- Technical DataFrame Template ---
+def get_empty_tech_df():
+    return pd.DataFrame({
+        "Color Name": ["Pantone 485 C", "", "", "", "", ""], # Example row
+        "Ink Code": ["", "", "", "", "", ""],
+        "Ink Mfg": ["", "", "", "", "", ""],
+        "Viscosity (sec)": ["", "", "", "", "", ""],
+        "LAB Values": ["", "", "", "", "", ""],
+        "Std Drawdown": ["", "", "", "", "", ""],
+        "Anilox LPI": ["", "", "", "", "", ""],
+        "Anilox BCM": ["", "", "", "", "", ""],
+        "Anilox cm³/m²": ["", "", "", "", "", ""], # 1 BCM = 1.55 cm3
+        "Anilox No.": ["", "", "", "", "", ""],
+        "Anilox Brand": ["", "", "", "", "", ""],
+        "Tape Brand": ["", "", "", "", "", ""],
+        "Tape Color": ["", "", "", "", "", ""],
+        "Tape Hardness": ["Medium", "Soft", "Medium Soft", "Medium", "Medium Hard", "Hard"]
+    })
+
 def display_order_card(order, current_tab):
-    with st.expander(f"📦 Order: {order['order_number']} | Client: {order['customer_name']} | Due: {order.get('due_date','')}"):
+    with st.expander(f"📦 Order: {order['order_number']} | Client: {order['customer_name']}", expanded=(current_tab == "in_prod")):
         
-        # Overview Columns
+        # 1. Basic Info
         col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.caption("Product Type")
-            st.write(f"**{order.get('product_type')}**")
-        with col2:
-            st.caption("Material Spec")
-            st.write(f"**{order.get('material_type')} ({order.get('thickness_micron')}µ)**")
-        with col3:
-            st.caption("Dimensions")
-            st.write(f"**W: {order.get('label_width_mm')}mm x L: {order.get('repeat_length_mm')}mm**")
-        with col4:
-            st.caption("Required QTY")
-            st.write(f"**{order.get('required_quantity'):,} PCS**")
+        col1.write(f"**Product:** {order.get('product_type')}")
+        col2.write(f"**Material:** {order.get('material_type')} ({order.get('thickness_micron')}µ)")
+        col3.write(f"**Size:** {order.get('label_width_mm')} x {order.get('repeat_length_mm')} mm")
+        col4.write(f"**QTY:** {order.get('required_quantity'):,} PCS")
             
         st.markdown("---")
         
-        # Action Buttons
-        action1, action2, action3 = st.columns(3)
+        # 2. THE NEW TECHNICAL SECTION (UI ONLY)
+        st.markdown("#### 🎨 Technical Job Ticket (Engineering & Setup)")
+        st.info("💡 **Draft Mode:** Fill the table below. (1 BCM/in² = 1.55 cm³/m²). *Data saving to Supabase will be added in the next step.*")
         
+        # Interactive Data Editor
+        edited_df = st.data_editor(
+            get_empty_tech_df(),
+            num_rows="dynamic",
+            use_container_width=True,
+            key=f"tech_editor_{order['id']}",
+            column_config={
+                "Tape Hardness": st.column_config.SelectboxColumn(
+                    "Tape Hardness",
+                    help="Select the mounting tape hardness",
+                    options=["Soft", "Medium Soft", "Medium", "Medium Hard", "Hard"],
+                    required=True
+                ),
+                "Anilox BCM": st.column_config.NumberColumn("Anilox BCM", format="%.2f"),
+                "Viscosity (sec)": st.column_config.NumberColumn("Viscosity (sec)"),
+            }
+        )
+        
+        # Plates & Cliché Actions
+        st.markdown("<br>", unsafe_allow_html=True)
+        col_p1, col_p2 = st.columns(2)
+        if order.get("artwork_status") == "NEW":
+            col_p1.button("📑 Generate New Cliché Request (PDF)", key=f"cliche_{order['id']}", type="secondary")
+        else:
+            col_p1.button("📂 Request Cliché from Archive", key=f"archive_{order['id']}", type="secondary")
+            
+        st.markdown("---")
+        
+        # 3. Actions
+        action1, action2 = st.columns(2)
         with action1:
             if current_tab == "pending":
-                if st.button("🚀 Start Production", key=f"start_{order['id']}", type="primary", use_container_width=True):
+                if st.button("🚀 Confirm Setup & Start Production", key=f"start_{order['id']}", type="primary"):
                     supabase.table("job_orders").update({"status": "in_production"}).eq("id", order['id']).execute()
                     st.rerun()
             elif current_tab == "in_prod":
-                if st.button("✅ Mark as Completed", key=f"comp_{order['id']}", type="primary", use_container_width=True):
+                if st.button("✅ Mark as Completed", key=f"comp_{order['id']}", type="primary"):
                     supabase.table("job_orders").update({"status": "completed"}).eq("id", order['id']).execute()
                     st.rerun()
-            elif current_tab == "completed":
-                if st.button("↩️ Revert to Production", key=f"rev_{order['id']}", use_container_width=True):
-                    supabase.table("job_orders").update({"status": "in_production"}).eq("id", order['id']).execute()
-                    st.rerun()
-                    
         with action2:
-            pdf_bytes = create_production_pdf(order)
-            st.download_button(
-                label="🖨️ Print Job Ticket",
-                data=pdf_bytes,
-                file_name=f"Production_Ticket_{order['order_number']}.pdf",
-                mime="application/pdf",
-                key=f"print_{order['id']}",
-                use_container_width=True
-            )
-            
-        with action3:
-            st.button("🔍 View Full Details", key=f"view_{order['id']}", use_container_width=True, help="Full edit feature coming soon")
+            st.button("🖨️ Print Full Technical Job Ticket", key=f"print_{order['id']}")
 
 # --- Populate Tabs ---
 with tab1:
-    if not pending_orders:
-        st.info("No pending orders at the moment.")
-    else:
-        for order in pending_orders:
-            display_order_card(order, "pending")
-
+    for order in pending_orders: display_order_card(order, "pending")
 with tab2:
-    if not in_production_orders:
-        st.info("No orders currently in production.")
-    else:
-        for order in in_production_orders:
-            display_order_card(order, "in_prod")
-
+    for order in in_production_orders: display_order_card(order, "in_prod")
 with tab3:
-    if not completed_orders:
-        st.info("No completed orders yet.")
-    else:
-        for order in completed_orders:
-            display_order_card(order, "completed")
+    for order in completed_orders: display_order_card(order, "completed")
