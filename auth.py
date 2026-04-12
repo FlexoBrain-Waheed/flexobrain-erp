@@ -26,6 +26,7 @@ def login_form():
                     # Save login state and set user role
                     st.session_state["authenticated"] = True
                     st.session_state["role"] = ROLE_PASSWORDS[password]
+                    st.session_state["user_id"] = password  # <--- Added to track specific user ID
                     st.rerun()
                 else:
                     st.error("❌ Invalid Password!")
