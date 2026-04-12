@@ -24,7 +24,7 @@ auth.require_role(["sales", "admin"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 19 - Smart ERP & Callbacks</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 20 - Ultimate Cloud ERP</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Users & Digital Signature Dictionary ---
@@ -82,11 +82,11 @@ def generate_order_number(supabase_client):
 auto_job_order_no = generate_order_number(supabase)
 
 # ==========================================
-# --- Smart Calculator Callbacks ---
+# --- Smart Calculator Callbacks & State ---
 # ==========================================
-# Initialize dynamic states to avoid Streamlit errors
 old_order = st.session_state.get('repeat_data', {})
 
+# Initialize dynamic states to prevent zero-override bug
 if 'in_lines' not in st.session_state:
     st.session_state['in_lines'] = int(old_order.get("no_of_lines", 1))
 if 'in_qty' not in st.session_state:
@@ -211,7 +211,7 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
             pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
             pdf.ln(5)
             
-            # Scenario A: New file uploaded
+            # Scenario A: New file uploaded during this session
             if image_file is not None:
                 img = Image.open(image_file).convert('RGB')
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
@@ -220,7 +220,7 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
                 pdf.image(tmp_path, x=10, y=30, w=190)
                 os.remove(tmp_path)
                 
-            # Scenario B: Fetch URL via requests
+            # Scenario B: URL from Repeat Order (Fetched from Storage)
             elif artwork_url:
                 response = requests.get(artwork_url, stream=True, timeout=10)
                 if response.status_code == 200:
@@ -230,8 +230,6 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
                         tmp_path = tmp_file.name
                     pdf.image(tmp_path, x=10, y=30, w=190)
                     os.remove(tmp_path)
-                else:
-                    raise Exception("URL Image fetch failed")
                     
         except Exception as e:
             pdf.set_font("Arial", '', 10)
@@ -340,7 +338,7 @@ with col_calc_rolls:
 with col_calc2:
     mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0.0, value=float(old_order.get("mother_roll_width_mm", 0.0)), key="in_mr_width", on_change=calc_smart_lines)
 with col_calc3:
-    # Notice we don't pass 'value=' here because it's handled by session_state dict up top
+    # No value= parameter here. It depends strictly on session_state['in_lines']
     no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, key="in_lines", on_change=calc_smart_qty)
 
 pcs_per_roll = int((mother_roll_length * 1000) / repeat_length) if mother_roll_length > 0 and repeat_length > 0 else 0
@@ -361,6 +359,7 @@ if mother_roll_width > 0 and required_roll_width > mother_roll_width:
     st.error(f"❌ Engineering Alert: Required production width ({required_roll_width} mm) exceeds Mother Roll Width ({mother_roll_width} mm). Please check measurements.")
     width_error = True
 
+# Calculate pure total labels for display info
 total_labels_calculated = 0
 if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0 and no_of_rolls > 0:
     total_labels_calculated = pcs_per_roll * no_of_lines * no_of_rolls
@@ -370,23 +369,20 @@ st.markdown("---")
 st.subheader("📦 3. Quantity, Delivery & Artwork")
 
 uploaded_design = st.file_uploader("🖼️ Upload Approved Design", type=["jpg", "jpeg", "png"], key="in_upload")
-final_artwork_path_for_db = None
+existing_artwork_url = old_order.get('artwork_url', "")
 
 if uploaded_design is not None:
     st.image(uploaded_design, caption="New Artwork Uploaded", width=200)
-    final_artwork_path_for_db = "new_upload_provided" 
-elif old_order and old_order.get('artwork_url'):
-    old_url = old_order.get('artwork_url')
+elif existing_artwork_url and str(existing_artwork_url).startswith("http"):
     st.success("🔄 USING EXISTING DESIGN FROM PREVIOUS ORDER")
     try:
-        st.image(old_url, caption="Existing design", width=200)
+        st.image(existing_artwork_url, caption="Existing design", width=200)
     except Exception:
         st.info("Existing design link attached to order.")
-    final_artwork_path_for_db = old_url
 
 col_q1, col_q2, col_q3 = st.columns(3) 
 with col_q1:
-    # Quantity now pulls from session state, synced dynamically
+    # Strictly bound to session_state['in_qty'], dynamically updating
     quantity = st.number_input("Required Quantity", min_value=0, step=1000, key="in_qty") 
 with col_q2:
     delivery_city = st.text_input("Delivery City", value=old_order.get("delivery_city", ""), key="in_city") 
@@ -448,62 +444,87 @@ with btn_col1:
         elif not company_name:
             st.error("❌ Please enter Customer Name before saving.")
         else:
-            try:
-                fresh_order_no = generate_order_number(supabase)
-                
-                db_data = {
-                    "order_number": fresh_order_no,
-                    "customer_name": company_name,
-                    "customer_po": po_number,
-                    "sales_po": sales_po,
-                    "customer_id": customer_id,
-                    "head_office_address": head_office_address,
-                    "head_office_city": head_office_city,
-                    "delivery_address": delivery_address,
-                    "delivery_city": delivery_city,
-                    "product_type": "BOPP Wrap Around Label",
-                    "product_code": product_code,
-                    "material_type": material_type,
-                    "density": float(density) if density else 0.0,
-                    "thickness_micron": float(thickness) if thickness else 0.0,
-                    "label_width_mm": float(width) if width else 0.0,
-                    "repeat_length_mm": float(repeat_length) if repeat_length else 0.0,
-                    "color_of_film": color_of_film,
-                    "colors_count": int(colors_no) if colors_no else 0,
-                    "artwork_status": artwork,
-                    "artwork_number": artwork_no,
-                    "artwork_url": final_artwork_path_for_db if final_artwork_path_for_db else "",
-                    "print_surface": print_position,
-                    "final_format": final_format,
-                    "inner_core": inner_core,
-                    "core_type": core_type,
-                    "core_wall_thickness_mm": float(core_thickness) if core_thickness else 0.0,
-                    "winding_direction": winding_direction,
-                    "mother_roll_length_m": float(mother_roll_length) if mother_roll_length else 0.0,
-                    "no_of_rolls": int(no_of_rolls) if no_of_rolls else 0,
-                    "no_of_lines": int(no_of_lines) if no_of_lines else 0,
-                    "mother_roll_width_mm": float(mother_roll_width) if mother_roll_width else 0.0,
-                    "edge_trim_mm": float(edge_trim) if edge_trim else 0.0,
-                    "required_quantity": int(quantity) if quantity else 0,
-                    "packaging_notes": packaging,
-                    "due_date": str(due_date),
-                    "remarks": notes,
-                    "status": "pending"
-                }
-                
-                response = supabase.table("job_orders").insert(db_data).execute()
-                
-                st.success(f"✅ Order successfully saved to Cloud Database as {fresh_order_no}!")
-                st.toast("✅ Sent to Production Board!", icon="☁️")
-                st.balloons()
-                
-                if 'repeat_data' in st.session_state:
-                    del st.session_state['repeat_data']
-            except Exception as e:
-                st.error(f"❌ Database Error: {str(e)}")
+            with st.spinner("Saving data and uploading artwork..."):
+                try:
+                    fresh_order_no = generate_order_number(supabase)
+                    final_url_to_save = existing_artwork_url
+                    
+                    # --- Storage Upload Logic ---
+                    if uploaded_design is not None:
+                        file_ext = uploaded_design.name.split('.')[-1]
+                        file_name = f"{fresh_order_no}.{file_ext}"
+                        file_bytes = uploaded_design.getvalue()
+                        mime_type = uploaded_design.type
+                        
+                        try:
+                            # Upload to Supabase Storage
+                            supabase.storage.from_('artworks').upload(
+                                path=file_name,
+                                file=file_bytes,
+                                file_options={"content-type": mime_type}
+                            )
+                            # Get Public URL
+                            final_url_to_save = supabase.storage.from_('artworks').get_public_url(file_name)
+                        except Exception as upload_err:
+                            st.warning(f"⚠️ Image uploaded locally but failed to save to cloud storage: {upload_err}")
+                            final_url_to_save = ""
+
+                    db_data = {
+                        "order_number": fresh_order_no,
+                        "customer_name": company_name,
+                        "customer_po": po_number,
+                        "sales_po": sales_po,
+                        "customer_id": customer_id,
+                        "head_office_address": head_office_address,
+                        "head_office_city": head_office_city,
+                        "delivery_address": delivery_address,
+                        "delivery_city": delivery_city,
+                        "product_type": "BOPP Wrap Around Label",
+                        "product_code": product_code,
+                        "material_type": material_type,
+                        "density": float(density) if density else 0.0,
+                        "thickness_micron": float(thickness) if thickness else 0.0,
+                        "label_width_mm": float(width) if width else 0.0,
+                        "repeat_length_mm": float(repeat_length) if repeat_length else 0.0,
+                        "color_of_film": color_of_film,
+                        "colors_count": int(colors_no) if colors_no else 0,
+                        "artwork_status": artwork,
+                        "artwork_number": artwork_no,
+                        "artwork_url": final_url_to_save,
+                        "print_surface": print_position,
+                        "final_format": final_format,
+                        "inner_core": inner_core,
+                        "core_type": core_type,
+                        "core_wall_thickness_mm": float(core_thickness) if core_thickness else 0.0,
+                        "winding_direction": winding_direction,
+                        "mother_roll_length_m": float(mother_roll_length) if mother_roll_length else 0.0,
+                        "no_of_rolls": int(no_of_rolls) if no_of_rolls else 0,
+                        "no_of_lines": int(no_of_lines) if no_of_lines else 0,
+                        "mother_roll_width_mm": float(mother_roll_width) if mother_roll_width else 0.0,
+                        "edge_trim_mm": float(edge_trim) if edge_trim else 0.0,
+                        "required_quantity": int(quantity) if quantity else 0,
+                        "packaging_notes": packaging,
+                        "due_date": str(due_date),
+                        "remarks": notes,
+                        "status": "pending"
+                    }
+                    
+                    response = supabase.table("job_orders").insert(db_data).execute()
+                    
+                    st.success(f"✅ Order successfully saved to Cloud Database as {fresh_order_no}!")
+                    st.toast("✅ Sent to Production Board!", icon="☁️")
+                    st.balloons()
+                    
+                    if 'repeat_data' in st.session_state:
+                        del st.session_state['repeat_data']
+                except Exception as e:
+                    st.error(f"❌ Database Error: {str(e)}")
 
 with btn_col2:
-    pdf_file = create_pdf(pdf_data, image_file=uploaded_design, artwork_url=final_artwork_path_for_db, stamp_name=current_user_name)
+    # Use existing URL if no new upload, else pass the upload for live PDF render
+    pdf_url = existing_artwork_url if uploaded_design is None else None
+    pdf_file = create_pdf(pdf_data, image_file=uploaded_design, artwork_url=pdf_url, stamp_name=current_user_name)
+    
     st.download_button(
         label="📄 Export PDF",
         data=pdf_file,
