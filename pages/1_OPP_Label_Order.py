@@ -24,18 +24,16 @@ auth.require_role(["sales", "admin"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 18 - Smart ERP Architecture</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 19 - Smart ERP & Callbacks</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Users & Digital Signature Dictionary ---
 # ==========================================
-# Maps the login ID to the actual employee name for the PDF Stamp
 USERS_DB = {
     "p11": "Eng. Amr Al mahmoudi",
     "p22": "Production Manager",
     "p33": "System Administrator"
 }
-# Get current user name, default to "Sales Department" if not found
 current_user_id = st.session_state.get("user_id", "")
 current_user_name = USERS_DB.get(current_user_id, "Sales Department")
 
@@ -84,6 +82,36 @@ def generate_order_number(supabase_client):
 auto_job_order_no = generate_order_number(supabase)
 
 # ==========================================
+# --- Smart Calculator Callbacks ---
+# ==========================================
+# Initialize dynamic states to avoid Streamlit errors
+old_order = st.session_state.get('repeat_data', {})
+
+if 'in_lines' not in st.session_state:
+    st.session_state['in_lines'] = int(old_order.get("no_of_lines", 1))
+if 'in_qty' not in st.session_state:
+    st.session_state['in_qty'] = int(old_order.get("required_quantity", 0))
+
+def calc_smart_lines():
+    """Calculates suggested lines based on widths and triggers quantity calc."""
+    mw = st.session_state.get('in_mr_width', 0.0)
+    w = st.session_state.get('in_width', 0.0)
+    trim = st.session_state.get('in_edge', 24.0)
+    if mw > 0 and w > 0:
+        suggested = int((mw - trim) / w)
+        st.session_state['in_lines'] = suggested if suggested > 0 else 1
+    calc_smart_qty()
+
+def calc_smart_qty():
+    """Calculates total quantity based on length, repeat, and lines."""
+    mr_len = st.session_state.get('in_mr_len', 0.0)
+    rep = st.session_state.get('in_repeat', 0.0)
+    lines = st.session_state.get('in_lines', 1)
+    rolls = st.session_state.get('in_rolls', 1)
+    if mr_len > 0 and rep > 0:
+        st.session_state['in_qty'] = int(((mr_len * 1000) / rep) * lines * rolls)
+
+# ==========================================
 # --- Functions for PDF Generation ---
 # ==========================================
 def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales Department"):
@@ -123,6 +151,7 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
     row_2_cols("Job Order No", data_dict.get("Job Order No"), "Date", data_dict.get("Date"))
     row_2_cols("Customer Name", data_dict.get("Customer Name"), "Customer PO#", data_dict.get("Customer PO#"))
     row_2_cols("Sales PO#", data_dict.get("Sales PO#"), "Customer ID", data_dict.get("Customer ID"))
+    row_full("Head Office Address", data_dict.get("Head Office Address"))
     row_full("Head Office City", data_dict.get("Head Office City"))
     pdf.ln(2)
 
@@ -154,36 +183,27 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
     row_full("Delivery Address", data_dict.get("Delivery Address"))
     row_full("Remarks / Notes", data_dict.get("Remarks / Notes"))
     
-    # ==========================================
     # --- DIGITAL STAMP ---
-    # ==========================================
     pdf.ln(6)
     current_y = pdf.get_y()
-    
     pdf.set_fill_color(245, 245, 245)
     pdf.rect(10, current_y, 190, 32, 'F')
-    
     pdf.set_xy(15, current_y + 5)
     pdf.set_font("Arial", 'B', 12)
-    pdf.set_text_color(0, 128, 0) # Green 
+    pdf.set_text_color(0, 128, 0)
     pdf.cell(0, 6, "[ APPROVED ] Digitally Approved & Sealed", ln=True)
-    
-    pdf.set_text_color(0, 0, 0) # Black
+    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 10)
     
     current_time = datetime.datetime.now().strftime("%d-%m-%Y | %H:%M:%S")
-    order_number = data_dict.get("Job Order No")
-    
     pdf.set_x(15)
     pdf.cell(0, 6, f"By: {stamp_name}", ln=True)
     pdf.set_x(15)
     pdf.cell(0, 6, f"Timestamp: {current_time}", ln=True)
     pdf.set_x(15)
-    pdf.cell(0, 6, f"System ID: {order_number}", ln=True)
+    pdf.cell(0, 6, f"System ID: {data_dict.get('Job Order No')}", ln=True)
 
-    # ==========================================
     # --- PAGE 2: ARTWORK (Upload or URL) ---
-    # ==========================================
     if image_file is not None or (artwork_url and str(artwork_url).startswith("http")):
         try:
             pdf.add_page()
@@ -200,9 +220,9 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
                 pdf.image(tmp_path, x=10, y=30, w=190)
                 os.remove(tmp_path)
                 
-            # Scenario B: URL from Repeat Order
+            # Scenario B: Fetch URL via requests
             elif artwork_url:
-                response = requests.get(artwork_url, stream=True)
+                response = requests.get(artwork_url, stream=True, timeout=10)
                 if response.status_code == 200:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
                         for chunk in response.iter_content(1024):
@@ -211,7 +231,7 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
                     pdf.image(tmp_path, x=10, y=30, w=190)
                     os.remove(tmp_path)
                 else:
-                    raise Exception("Failed to download image from URL")
+                    raise Exception("URL Image fetch failed")
                     
         except Exception as e:
             pdf.set_font("Arial", '', 10)
@@ -224,10 +244,8 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
 # ==========================================
 # --- Main UI Starts Here ---
 # ==========================================
-st.title("📝 Create New Job Order")
+st.title("📝 Create New Job Order - Wrap Around Label")
 
-# --- Repeat Order Verification ---
-old_order = st.session_state.get('repeat_data', {})
 if old_order:
     st.info(f"🔄 Repeat Mode Active: Auto-filling data based on previous Job Order {old_order.get('order_number', '')}")
 
@@ -249,7 +267,6 @@ col_addr1, col_addr2 = st.columns(2)
 with col_addr1:
     head_office_address = st.text_input("Company Head Office Address", value=old_order.get("head_office_address", ""), key="in_addr1")
 with col_addr2:
-    # Changed label based on request, variable kept for DB logic
     head_office_city = st.text_input("Company Head Office City", value=old_order.get("head_office_city", ""), key="in_addr2")
 st.markdown("---")
 
@@ -271,9 +288,9 @@ with col_s4:
 
 col_s5, col_s6, col_s7, col_s8 = st.columns(4)
 with col_s5:
-    width = st.number_input("Label Width (mm)", min_value=0.0, value=float(old_order.get("label_width_mm", 0.0)), key="in_width") 
+    width = st.number_input("Label Width (mm)", min_value=0.0, value=float(old_order.get("label_width_mm", 0.0)), key="in_width", on_change=calc_smart_lines) 
 with col_s6:
-    repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0, value=float(old_order.get("repeat_length_mm", 0.0)), key="in_repeat")
+    repeat_length = st.number_input("Repeat Length (mm)", min_value=0.0, value=float(old_order.get("repeat_length_mm", 0.0)), key="in_repeat", on_change=calc_smart_qty)
 with col_s7:
     color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"], key="in_color_choice")
     color_of_film = st.text_input("Specify Color:", value=old_order.get("color_of_film", "Transparent"), key="in_spec_color") if color_choice == "Other" else color_choice
@@ -311,28 +328,20 @@ with col_d4:
 
 st.markdown("#### 🧮 Smart Web & Production Calculator")
 
-# Edge trim defined early for the Smart Lines calculation
 col_edge, _, _, _ = st.columns(4)
 with col_edge:
-    edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0.0, value=float(old_order.get("edge_trim_mm", 24.0)), key="in_edge")
+    edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0.0, value=float(old_order.get("edge_trim_mm", 24.0)), key="in_edge", on_change=calc_smart_lines)
 
 col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
 with col_calc1:
-    mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0.0, value=float(old_order.get("mother_roll_length_m", 0.0)), key="in_mr_len")
+    mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0.0, value=float(old_order.get("mother_roll_length_m", 0.0)), key="in_mr_len", on_change=calc_smart_qty)
 with col_calc_rolls:
-    no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=int(old_order.get("no_of_rolls", 1)), key="in_rolls")
+    no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=int(old_order.get("no_of_rolls", 1)), key="in_rolls", on_change=calc_smart_qty)
 with col_calc2:
-    mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0.0, value=float(old_order.get("mother_roll_width_mm", 0.0)), key="in_mr_width")
-
-# --- Smart No. of Lines Suggestion ---
-suggested_lines = 1
-if mother_roll_width > 0 and width > 0:
-    calc_lines = int((mother_roll_width - edge_trim) / width)
-    suggested_lines = calc_lines if calc_lines > 0 else 1
-
+    mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0.0, value=float(old_order.get("mother_roll_width_mm", 0.0)), key="in_mr_width", on_change=calc_smart_lines)
 with col_calc3:
-    no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=int(old_order.get("no_of_lines", suggested_lines)), key="in_lines")
-    
+    # Notice we don't pass 'value=' here because it's handled by session_state dict up top
+    no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, key="in_lines", on_change=calc_smart_qty)
 
 pcs_per_roll = int((mother_roll_length * 1000) / repeat_length) if mother_roll_length > 0 and repeat_length > 0 else 0
 waste_by_mm = float(mother_roll_width - (width * no_of_lines)) if mother_roll_width > 0 and width > 0 and no_of_lines > 0 else 0.0
@@ -365,7 +374,7 @@ final_artwork_path_for_db = None
 
 if uploaded_design is not None:
     st.image(uploaded_design, caption="New Artwork Uploaded", width=200)
-    final_artwork_path_for_db = "new_upload_provided" # (In production, replace with actual upload logic)
+    final_artwork_path_for_db = "new_upload_provided" 
 elif old_order and old_order.get('artwork_url'):
     old_url = old_order.get('artwork_url')
     st.success("🔄 USING EXISTING DESIGN FROM PREVIOUS ORDER")
@@ -375,12 +384,10 @@ elif old_order and old_order.get('artwork_url'):
         st.info("Existing design link attached to order.")
     final_artwork_path_for_db = old_url
 
-# UI Reordering for Addresses & Quantity Sync
 col_q1, col_q2, col_q3 = st.columns(3) 
 with col_q1:
-    # Sync with Calculator
-    default_qty = int(total_labels_calculated) if total_labels_calculated > 0 else int(old_order.get("required_quantity", 0))
-    quantity = st.number_input("Required Quantity", min_value=0, value=default_qty, step=1000, key="in_qty") 
+    # Quantity now pulls from session state, synced dynamically
+    quantity = st.number_input("Required Quantity", min_value=0, step=1000, key="in_qty") 
 with col_q2:
     delivery_city = st.text_input("Delivery City", value=old_order.get("delivery_city", ""), key="in_city") 
 with col_q3:
@@ -402,6 +409,7 @@ pdf_data = {
     "Customer ID": customer_id,
     "Customer PO#": po_number,
     "Sales PO#": sales_po,          
+    "Head Office Address": head_office_address,
     "Head Office City": head_office_city,
     "Delivery Address": delivery_address,
     "Delivery City": delivery_city, 
@@ -443,7 +451,6 @@ with btn_col1:
             try:
                 fresh_order_no = generate_order_number(supabase)
                 
-                # DB mapping
                 db_data = {
                     "order_number": fresh_order_no,
                     "customer_name": company_name,
