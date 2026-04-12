@@ -23,7 +23,7 @@ import auth
 auth.require_role(["sales", "admin"])
 auth.logout_button()
 
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 05 - Smart Control Center</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 06 - Full Lifecycle Control</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Users & Digital Signature Dictionary ---
@@ -52,14 +52,18 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# --- PDF Generation Engine (Imported) ---
+# --- PDF Generation Engine ---
 # ==========================================
 def create_pdf(data_dict, artwork_url=None, stamp_name="Sales Department"):
     pdf = FPDF()
     pdf.add_page()
     
     pdf.set_font("Arial", 'B', 16)
-    pdf.cell(0, 10, "Sales Job Order - BOPP Wrap Around Label", ln=True, align='C')
+    doc_title = "Sales Job Order - BOPP Wrap Around Label"
+    if "-R" in data_dict.get("Job Order No", ""):
+        doc_title += " [ REVISED ]"
+    
+    pdf.cell(0, 10, doc_title, ln=True, align='C')
     pdf.ln(2)
     
     def safe_txt(txt):
@@ -86,7 +90,6 @@ def create_pdf(data_dict, artwork_url=None, stamp_name="Sales Department"):
         pdf.set_font("Arial", '', 10)
         pdf.multi_cell(145, 8, safe_txt(v), border=1)
 
-    # Section 1
     section_header("1. Order Information")
     row_2_cols("Job Order No", data_dict.get("Job Order No"), "Date", data_dict.get("Date"))
     row_2_cols("Customer Name", data_dict.get("Customer Name"), "Customer PO#", data_dict.get("Customer PO#"))
@@ -95,35 +98,30 @@ def create_pdf(data_dict, artwork_url=None, stamp_name="Sales Department"):
     row_full("Head Office City", data_dict.get("Head Office City"))
     pdf.ln(2)
 
-    # Section 2
     section_header("2. Material Specifications")
     row_2_cols("Product Type", data_dict.get("Product Type"), "Material Type", data_dict.get("Material Type"))
     row_2_cols("Thickness (u)", data_dict.get("Thickness (u)"), "Density", data_dict.get("Density (g/cm3)"))
     row_2_cols("Mother Roll Width", data_dict.get("Mother Roll Width (mm)"), "Edge Trim", data_dict.get("Edge Trim (mm)"))
     pdf.ln(2)
 
-    # Section 3
     section_header("3. Print & Dimensions")
     row_2_cols("Label Width (mm)", data_dict.get("Label/Film Width (mm)"), "Repeat Length", data_dict.get("Repeat Length (mm)"))
     row_2_cols("No. of Colors", data_dict.get("Colors"), "Film Color", data_dict.get("Color of Film"))
     row_2_cols("Artwork Status", data_dict.get("Artwork Status"), "Artwork No.", data_dict.get("Artwork No."))
     pdf.ln(2)
 
-    # Section 4
     section_header("4. Print, Winding & Core")
     row_2_cols("Print Surface", data_dict.get("Print Surface"), "Final Format", data_dict.get("Final Format"))
     row_2_cols("Inner Core", data_dict.get("Inner Core"), "Core Type", data_dict.get("Core Type"))
     row_2_cols("Wall Thickness", data_dict.get("Wall Thickness (mm)"), "Winding Dir", data_dict.get("Winding Direction"))
     pdf.ln(2)
 
-    # Section 5
     section_header("5. Quantity & Delivery")
     row_2_cols("Required QTY", data_dict.get("Required Quantity"), "Due Date", data_dict.get("Due Date"))
     row_2_cols("Delivery City", data_dict.get("Delivery City"), "Packaging", data_dict.get("Packaging"))
     row_full("Delivery Address", data_dict.get("Delivery Address"))
     row_full("Remarks / Notes", data_dict.get("Remarks / Notes"))
     
-    # --- DIGITAL STAMP ---
     pdf.ln(6)
     current_y = pdf.get_y()
     pdf.set_fill_color(245, 245, 245)
@@ -143,14 +141,12 @@ def create_pdf(data_dict, artwork_url=None, stamp_name="Sales Department"):
     pdf.set_x(15)
     pdf.cell(0, 6, f"System ID: {data_dict.get('Job Order No')}", ln=True)
 
-    # --- PAGE 2: ARTWORK (Fetched from URL) ---
     if artwork_url and str(artwork_url).startswith("http"):
         try:
             pdf.add_page()
             pdf.set_font("Arial", 'B', 16)
             pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
             pdf.ln(5)
-            
             response = requests.get(artwork_url, stream=True, timeout=10)
             if response.status_code == 200:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
@@ -159,20 +155,15 @@ def create_pdf(data_dict, artwork_url=None, stamp_name="Sales Department"):
                     tmp_path = tmp_file.name
                 pdf.image(tmp_path, x=10, y=30, w=190)
                 os.remove(tmp_path)
-        except Exception as e:
-            pdf.set_font("Arial", '', 10)
-            pdf.set_text_color(255, 0, 0)
-            pdf.cell(0, 10, "⚠️ Note: Artwork image could not be embedded.", ln=True, align='C')
-
+        except:
+            pass
     return pdf.output(dest='S').encode('latin-1')
 
 # ==========================================
-# --- Helper: Map DB Row to PDF Dict ---
+# --- Helper Functions ---
 # ==========================================
 def map_db_to_pdf_dict(row):
-    # Created At comes like "2026-04-12T10:30:00+00:00", we split to get the date part
     date_created = str(row.get('created_at', '')).split('T')[0] if row.get('created_at') else ""
-    
     return {
         "Date": date_created,
         "Job Order No": row.get('order_number', ''),
@@ -208,9 +199,6 @@ def map_db_to_pdf_dict(row):
         "Remarks / Notes": row.get('remarks', '')
     }
 
-# ==========================================
-# --- Action Functions ---
-# ==========================================
 def update_order_status(order_id, new_status):
     try:
         supabase.table("job_orders").update({"status": new_status}).eq("id", order_id).execute()
@@ -219,14 +207,11 @@ def update_order_status(order_id, new_status):
         st.error(f"Error updating status: {e}")
 
 # ==========================================
-# --- Main UI Starts Here ---
+# --- Main UI ---
 # ==========================================
 st.title("📊 Sales Dashboard & Control Center")
 st.markdown("---")
 
-st.subheader("📋 Order Live Tracking")
-
-# Fetch Data
 try:
     response = supabase.table("job_orders").select("*").order("id", desc=True).execute()
     data = response.data
@@ -235,9 +220,8 @@ except Exception as e:
     st.stop()
 
 if not data:
-    st.info("No orders found in the database.")
+    st.info("No orders found.")
 else:
-    # Colors and Emojis for statuses
     status_config = {
         'pending': '🟡 Pending',
         'in progress': '🔵 In Progress',
@@ -249,64 +233,55 @@ else:
     for row in data:
         current_status = str(row.get('status', 'pending')).lower()
         status_disp = status_config.get(current_status, f"⚪ {current_status.upper()}")
-        
-        # Display title of the Expander
         expander_title = f"📦 Order: {row.get('order_number')} | Client: {row.get('customer_name')} | Status: {status_disp}"
         
         with st.expander(expander_title):
-            # --- Mini-Card Data Enrichment ---
             st.markdown(f"**👤 Customer:** {row.get('customer_name')} | **📑 PO Number:** {row.get('customer_po', 'N/A')}")
             st.markdown(f"**🚚 Delivery:** {row.get('delivery_city', 'N/A')} (Due: {row.get('due_date', 'N/A')})")
-            
-            w = row.get('label_width_mm', 0)
-            r = row.get('repeat_length_mm', 0)
+            w, r = row.get('label_width_mm', 0), row.get('repeat_length_mm', 0)
             st.markdown(f"**⚙️ Specs:** {row.get('material_type')} ({row.get('thickness_micron')}µ) | **Size:** {w} x {r} mm | **QTY:** {int(row.get('required_quantity', 0)):,} PCS")
-            
             art_url = row.get('artwork_url', '')
             art_disp = f"[🔗 View Artwork]({art_url})" if art_url and art_url.startswith("http") else "No URL"
             st.markdown(f"**🎨 Colors:** {row.get('colors_count')} | **Status:** {row.get('artwork_status')} | **Artwork:** {art_disp}")
-            
             st.markdown("---")
             
-            # --- Action Center (Buttons) ---
-            col1, col2, col3, col4 = st.columns(4)
+            # --- Action Center (5 Columns) ---
+            col1, col2, col3, col4, col5 = st.columns(5)
             
-            # Action 1: Download PDF (Dynamic)
             with col1:
                 pdf_dict = map_db_to_pdf_dict(row)
                 pdf_file = create_pdf(pdf_dict, artwork_url=art_url, stamp_name=current_user_name)
-                st.download_button(
-                    label="📄 Download PDF",
-                    data=pdf_file,
-                    file_name=f"{row.get('order_number')}_Copy.pdf",
-                    mime="application/pdf",
-                    key=f"pdf_{row['id']}",
-                    use_container_width=True
-                )
+                st.download_button(label="📄 PDF", data=pdf_file, file_name=f"{row.get('order_number')}.pdf", key=f"pdf_{row['id']}", use_container_width=True)
             
-            # Action 2: Repeat Order
             with col2:
-                if st.button("🔄 Repeat Order", key=f"repeat_{row['id']}", use_container_width=True):
+                if st.button("🔄 Repeat", key=f"rep_{row['id']}", use_container_width=True):
                     st.session_state['repeat_data'] = row
-                    st.success("Data loaded! Please navigate to the 'OPP Label Order' page from the sidebar to submit the repeat order.")
-            
-            # Action 3 & 4: Status Controls (Hold / Cancel / Resume)
+                    if 'edit_data' in st.session_state: del st.session_state['edit_data']
+                    st.success("Loaded as REPEAT. Go to Order Page.")
+
             with col3:
-                if current_status == 'pending':
-                    if st.button("⏸️ Put on Hold", key=f"hold_{row['id']}", use_container_width=True):
-                        update_order_status(row['id'], 'on hold')
-                        st.rerun()
-                elif current_status == 'on hold':
-                    if st.button("▶️ Resume Order", type="primary", key=f"resume_{row['id']}", use_container_width=True):
-                        update_order_status(row['id'], 'pending')
-                        st.rerun()
-                else:
-                    st.button("🔒 Locked", disabled=True, key=f"lock1_{row['id']}", use_container_width=True)
-            
-            with col4:
+                # EDIT Button logic
                 if current_status in ['pending', 'on hold']:
-                    if st.button("❌ Cancel Order", key=f"cancel_{row['id']}", use_container_width=True):
-                        update_order_status(row['id'], 'cancelled')
-                        st.rerun()
+                    if st.button("✏️ Edit", key=f"edit_{row['id']}", use_container_width=True):
+                        st.session_state['edit_data'] = row
+                        if 'repeat_data' in st.session_state: del st.session_state['repeat_data']
+                        st.warning("EDIT Mode Active. Go to Order Page to revise.")
                 else:
-                    st.button("🔒 Locked", disabled=True, key=f"lock2_{row['id']}", use_container_width=True)
+                    st.button("✏️ Edit", disabled=True, key=f"edit_dis_{row['id']}", use_container_width=True)
+
+            with col4:
+                if current_status == 'pending':
+                    if st.button("⏸️ Hold", key=f"hold_{row['id']}", use_container_width=True):
+                        update_order_status(row['id'], 'on hold'); st.rerun()
+                elif current_status == 'on hold':
+                    if st.button("▶️ Resume", type="primary", key=f"res_{row['id']}", use_container_width=True):
+                        update_order_status(row['id'], 'pending'); st.rerun()
+                else:
+                    st.button("🔒 Locked", disabled=True, key=f"l1_{row['id']}", use_container_width=True)
+            
+            with col5:
+                if current_status in ['pending', 'on hold']:
+                    if st.button("❌ Cancel", key=f"can_{row['id']}", use_container_width=True):
+                        update_order_status(row['id'], 'cancelled'); st.rerun()
+                else:
+                    st.button("🔒 Locked", disabled=True, key=f"l2_{row['id']}", use_container_width=True)
