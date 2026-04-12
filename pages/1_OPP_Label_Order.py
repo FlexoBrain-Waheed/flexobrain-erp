@@ -4,6 +4,7 @@ import pandas as pd
 import io
 import tempfile
 import os
+import requests
 from fpdf import FPDF
 import sys
 from pathlib import Path
@@ -19,11 +20,24 @@ if root_dir not in sys.path:
     sys.path.append(root_dir)
 
 import auth
-auth.require_role(["sales"])
+auth.require_role(["sales", "admin"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 17 - Stable Pro Integration</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 18 - Smart ERP Architecture</div>", unsafe_allow_html=True)
+
+# ==========================================
+# --- Users & Digital Signature Dictionary ---
+# ==========================================
+# Maps the login ID to the actual employee name for the PDF Stamp
+USERS_DB = {
+    "p11": "Eng. Amr Al mahmoudi",
+    "p22": "Production Manager",
+    "p33": "System Administrator"
+}
+# Get current user name, default to "Sales Department" if not found
+current_user_id = st.session_state.get("user_id", "")
+current_user_name = USERS_DB.get(current_user_id, "Sales Department")
 
 # ==========================================
 # --- Supabase Database Connection ---
@@ -67,13 +81,12 @@ def generate_order_number(supabase_client):
     except Exception as e:
         return f"{prefix}999"
 
-# Generate an initial display number (Actual save number is generated on button click)
 auto_job_order_no = generate_order_number(supabase)
 
 # ==========================================
 # --- Functions for PDF Generation ---
 # ==========================================
-def create_pdf(data_dict, image_file=None, artwork_url=None):
+def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales Department"):
     pdf = FPDF()
     pdf.add_page()
     
@@ -110,7 +123,7 @@ def create_pdf(data_dict, image_file=None, artwork_url=None):
     row_2_cols("Job Order No", data_dict.get("Job Order No"), "Date", data_dict.get("Date"))
     row_2_cols("Customer Name", data_dict.get("Customer Name"), "Customer PO#", data_dict.get("Customer PO#"))
     row_2_cols("Sales PO#", data_dict.get("Sales PO#"), "Customer ID", data_dict.get("Customer ID"))
-    row_full("Delivery Address", data_dict.get("Delivery Address"))
+    row_full("Head Office City", data_dict.get("Head Office City"))
     pdf.ln(2)
 
     # Section 2
@@ -137,39 +150,39 @@ def create_pdf(data_dict, image_file=None, artwork_url=None):
     # Section 5
     section_header("5. Quantity & Delivery")
     row_2_cols("Required QTY", data_dict.get("Required Quantity"), "Due Date", data_dict.get("Due Date"))
-    row_2_cols("Packaging", data_dict.get("Packaging"), "Delivery City", data_dict.get("Delivery City"))
+    row_2_cols("Delivery City", data_dict.get("Delivery City"), "Packaging", data_dict.get("Packaging"))
+    row_full("Delivery Address", data_dict.get("Delivery Address"))
     row_full("Remarks / Notes", data_dict.get("Remarks / Notes"))
     
     # ==========================================
-    # --- THE DIGITAL STAMP ---
+    # --- DIGITAL STAMP ---
     # ==========================================
-    pdf.ln(8)
+    pdf.ln(6)
     current_y = pdf.get_y()
     
     pdf.set_fill_color(245, 245, 245)
-    pdf.rect(10, current_y, 190, 35, 'F')
+    pdf.rect(10, current_y, 190, 32, 'F')
     
     pdf.set_xy(15, current_y + 5)
     pdf.set_font("Arial", 'B', 12)
-    pdf.set_text_color(0, 128, 0) 
+    pdf.set_text_color(0, 128, 0) # Green 
     pdf.cell(0, 6, "[ APPROVED ] Digitally Approved & Sealed", ln=True)
     
-    pdf.set_text_color(0, 0, 0)
+    pdf.set_text_color(0, 0, 0) # Black
     pdf.set_font("Arial", '', 10)
     
     current_time = datetime.datetime.now().strftime("%d-%m-%Y | %H:%M:%S")
-    user_name = "Sales Department" 
     order_number = data_dict.get("Job Order No")
     
     pdf.set_x(15)
-    pdf.cell(0, 6, f"By: {user_name}", ln=True)
+    pdf.cell(0, 6, f"By: {stamp_name}", ln=True)
     pdf.set_x(15)
     pdf.cell(0, 6, f"Timestamp: {current_time}", ln=True)
     pdf.set_x(15)
     pdf.cell(0, 6, f"System ID: {order_number}", ln=True)
 
     # ==========================================
-    # --- PAGE 2: ARTWORK ---
+    # --- PAGE 2: ARTWORK (Upload or URL) ---
     # ==========================================
     if image_file is not None or (artwork_url and str(artwork_url).startswith("http")):
         try:
@@ -178,6 +191,7 @@ def create_pdf(data_dict, image_file=None, artwork_url=None):
             pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
             pdf.ln(5)
             
+            # Scenario A: New file uploaded
             if image_file is not None:
                 img = Image.open(image_file).convert('RGB')
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
@@ -185,14 +199,27 @@ def create_pdf(data_dict, image_file=None, artwork_url=None):
                     img.save(tmp_path, format="JPEG")
                 pdf.image(tmp_path, x=10, y=30, w=190)
                 os.remove(tmp_path)
-            else:
-                pdf.image(artwork_url, x=10, y=30, w=190)
-        except Exception:
+                
+            # Scenario B: URL from Repeat Order
+            elif artwork_url:
+                response = requests.get(artwork_url, stream=True)
+                if response.status_code == 200:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
+                        for chunk in response.iter_content(1024):
+                            tmp_file.write(chunk)
+                        tmp_path = tmp_file.name
+                    pdf.image(tmp_path, x=10, y=30, w=190)
+                    os.remove(tmp_path)
+                else:
+                    raise Exception("Failed to download image from URL")
+                    
+        except Exception as e:
             pdf.set_font("Arial", '', 10)
             pdf.set_text_color(255, 0, 0)
-            pdf.cell(0, 10, "⚠️ Note: Artwork image could not be embedded in the PDF.", ln=True, align='C')
+            pdf.cell(0, 10, "⚠️ Note: Artwork image could not be embedded.", ln=True, align='C')
 
     return pdf.output(dest='S').encode('latin-1')
+
 
 # ==========================================
 # --- Main UI Starts Here ---
@@ -202,7 +229,7 @@ st.title("📝 Create New Job Order")
 # --- Repeat Order Verification ---
 old_order = st.session_state.get('repeat_data', {})
 if old_order:
-    st.info(f"🔄 Repeat Mode Active: Auto-filling data based on Job Order {old_order.get('order_number', '')}")
+    st.info(f"🔄 Repeat Mode Active: Auto-filling data based on previous Job Order {old_order.get('order_number', '')}")
 
 st.markdown("---")
 
@@ -220,9 +247,10 @@ with col3:
 
 col_addr1, col_addr2 = st.columns(2)
 with col_addr1:
-    head_office_address = st.text_input("Company Head Office Address", key="in_addr1")
+    head_office_address = st.text_input("Company Head Office Address", value=old_order.get("head_office_address", ""), key="in_addr1")
 with col_addr2:
-    delivery_address = st.text_input("Delivery Address", key="in_addr2")
+    # Changed label based on request, variable kept for DB logic
+    head_office_city = st.text_input("Company Head Office City", value=old_order.get("head_office_city", ""), key="in_addr2")
 st.markdown("---")
 
 st.subheader("⚙️ 2. Product Specs")
@@ -282,6 +310,12 @@ with col_d4:
     winding_direction = st.selectbox("Winding Direction", wind_ops, index=safe_idx(wind_ops, old_order.get("winding_direction", "Clockwise #4")), key="in_wind_dir")
 
 st.markdown("#### 🧮 Smart Web & Production Calculator")
+
+# Edge trim defined early for the Smart Lines calculation
+col_edge, _, _, _ = st.columns(4)
+with col_edge:
+    edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0.0, value=float(old_order.get("edge_trim_mm", 24.0)), key="in_edge")
+
 col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
 with col_calc1:
     mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0.0, value=float(old_order.get("mother_roll_length_m", 0.0)), key="in_mr_len")
@@ -289,20 +323,24 @@ with col_calc_rolls:
     no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=int(old_order.get("no_of_rolls", 1)), key="in_rolls")
 with col_calc2:
     mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0.0, value=float(old_order.get("mother_roll_width_mm", 0.0)), key="in_mr_width")
+
+# --- Smart No. of Lines Suggestion ---
+suggested_lines = 1
+if mother_roll_width > 0 and width > 0:
+    calc_lines = int((mother_roll_width - edge_trim) / width)
+    suggested_lines = calc_lines if calc_lines > 0 else 1
+
 with col_calc3:
-    no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=int(old_order.get("no_of_lines", 1)), key="in_lines")
+    no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, value=int(old_order.get("no_of_lines", suggested_lines)), key="in_lines")
     
-col_calc4, col_calc5, col_calc6, col_calc7 = st.columns(4)
-with col_calc4:
-    edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0.0, value=float(old_order.get("edge_trim_mm", 24.0)), key="in_edge")
 
 pcs_per_roll = int((mother_roll_length * 1000) / repeat_length) if mother_roll_length > 0 and repeat_length > 0 else 0
-with col_calc5:
-    st.number_input("Pcs / Roll", value=pcs_per_roll, disabled=True)
-    
 waste_by_mm = float(mother_roll_width - (width * no_of_lines)) if mother_roll_width > 0 and width > 0 and no_of_lines > 0 else 0.0
 unused_waste = float(waste_by_mm - edge_trim) if waste_by_mm > 0 else 0.0
 
+col_calc5, col_calc6, col_calc7, _ = st.columns(4)
+with col_calc5:
+    st.number_input("Pcs / Roll", value=pcs_per_roll, disabled=True)
 with col_calc6:
     st.number_input("Total Waste (mm)", value=waste_by_mm, disabled=True)
 with col_calc7:
@@ -327,7 +365,7 @@ final_artwork_path_for_db = None
 
 if uploaded_design is not None:
     st.image(uploaded_design, caption="New Artwork Uploaded", width=200)
-    final_artwork_path_for_db = "new_upload_provided" 
+    final_artwork_path_for_db = "new_upload_provided" # (In production, replace with actual upload logic)
 elif old_order and old_order.get('artwork_url'):
     old_url = old_order.get('artwork_url')
     st.success("🔄 USING EXISTING DESIGN FROM PREVIOUS ORDER")
@@ -337,16 +375,22 @@ elif old_order and old_order.get('artwork_url'):
         st.info("Existing design link attached to order.")
     final_artwork_path_for_db = old_url
 
-col_q1, col_q2, col_q3, col_q4 = st.columns(4) 
+# UI Reordering for Addresses & Quantity Sync
+col_q1, col_q2, col_q3 = st.columns(3) 
 with col_q1:
+    # Sync with Calculator
     default_qty = int(total_labels_calculated) if total_labels_calculated > 0 else int(old_order.get("required_quantity", 0))
     quantity = st.number_input("Required Quantity", min_value=0, value=default_qty, step=1000, key="in_qty") 
 with col_q2:
-    packaging = st.text_input("Packaging", value=old_order.get("packaging_notes", "Suitable / As Usual"), key="in_pack")
-with col_q3:
-    due_date = st.date_input("Due Date", datetime.date.today(), key="in_due")
-with col_q4:
     delivery_city = st.text_input("Delivery City", value=old_order.get("delivery_city", ""), key="in_city") 
+with col_q3:
+    delivery_address = st.text_input("Delivery Address", value=old_order.get("delivery_address", ""), key="in_addr_deliv")
+
+col_q4, col_q5 = st.columns(2)
+with col_q4:
+    due_date = st.date_input("Due Date", datetime.date.today(), key="in_due")
+with col_q5:
+    packaging = st.text_input("Packaging", value=old_order.get("packaging_notes", "Suitable / As Usual"), key="in_pack")
 
 notes = st.text_area("Remarks / Notes", key="in_notes")
 
@@ -358,6 +402,7 @@ pdf_data = {
     "Customer ID": customer_id,
     "Customer PO#": po_number,
     "Sales PO#": sales_po,          
+    "Head Office City": head_office_city,
     "Delivery Address": delivery_address,
     "Delivery City": delivery_city, 
     "Product Type": "BOPP Wrap Around Label", 
@@ -396,16 +441,18 @@ with btn_col1:
             st.error("❌ Please enter Customer Name before saving.")
         else:
             try:
-                # Generate fresh number exactly at save time
                 fresh_order_no = generate_order_number(supabase)
                 
-                # Prepare data exactly matching Supabase columns
+                # DB mapping
                 db_data = {
                     "order_number": fresh_order_no,
                     "customer_name": company_name,
                     "customer_po": po_number,
                     "sales_po": sales_po,
                     "customer_id": customer_id,
+                    "head_office_address": head_office_address,
+                    "head_office_city": head_office_city,
+                    "delivery_address": delivery_address,
                     "delivery_city": delivery_city,
                     "product_type": "BOPP Wrap Around Label",
                     "product_code": product_code,
@@ -437,21 +484,19 @@ with btn_col1:
                     "status": "pending"
                 }
                 
-                # Insert command
                 response = supabase.table("job_orders").insert(db_data).execute()
                 
                 st.success(f"✅ Order successfully saved to Cloud Database as {fresh_order_no}!")
                 st.toast("✅ Sent to Production Board!", icon="☁️")
                 st.balloons()
                 
-                # Clear repeat data
                 if 'repeat_data' in st.session_state:
                     del st.session_state['repeat_data']
             except Exception as e:
                 st.error(f"❌ Database Error: {str(e)}")
 
 with btn_col2:
-    pdf_file = create_pdf(pdf_data, image_file=uploaded_design, artwork_url=final_artwork_path_for_db)
+    pdf_file = create_pdf(pdf_data, image_file=uploaded_design, artwork_url=final_artwork_path_for_db, stamp_name=current_user_name)
     st.download_button(
         label="📄 Export PDF",
         data=pdf_file,
@@ -463,6 +508,6 @@ with btn_col2:
 with btn_col3:
     if st.button("🗑️ Reset Form", use_container_width=True):
         for key in list(st.session_state.keys()):
-            if key not in ["authenticated", "role"]:
+            if key not in ["authenticated", "role", "user_id"]:
                 del st.session_state[key]
         st.rerun()
