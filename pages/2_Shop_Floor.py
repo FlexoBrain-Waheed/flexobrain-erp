@@ -19,7 +19,6 @@ st.markdown("""
     .kiosk-title { font-size: 3rem; font-weight: bold; text-align: center; color: #1E3A8A; margin-bottom: 20px;}
     .big-info { font-size: 1.5rem; font-weight: bold; color: #333; padding: 15px; background-color: #f0f2f6; border-radius: 10px; margin-bottom: 10px;}
     
-    /* 🔥 The New Fix for Scanner Input Box 🔥 */
     div[data-baseweb="input"] {
         height: 90px !important;
         border-radius: 10px !important;
@@ -36,6 +35,8 @@ st.markdown("""
     .stButton button:active { transform: scale(0.95); }
     .stSelectbox label { font-size: 1.5rem !important; font-weight: bold; }
     .stNumberInput label { font-size: 1.5rem !important; font-weight: bold; }
+    .stTextArea label { font-size: 1.5rem !important; font-weight: bold; }
+    .stTextArea textarea { font-size: 1.5rem !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -139,12 +140,25 @@ if scanned_code:
     elif status == 'finished':
         st.warning("⚠️ JOB FINISHED. Please enter Final Production Data.", icon="📝")
         
+        # Row 1: Rolls Tracking
         col_w1, col_w2 = st.columns(2)
         with col_w1:
-            waste_kg = st.number_input("🗑️ Enter Total Waste (KG):", min_value=0.0, step=1.0)
+            rolls_in = st.number_input("📥 Number of Rolls Fed to Machine:", min_value=0, step=1)
         with col_w2:
-            good_rolls = st.number_input("✅ Number of Good Rolls Produced:", min_value=0, step=1)
+            rolls_out = st.number_input("✅ Number of Good Rolls Printed (Out):", min_value=0, step=1)
         
+        # Row 2: Metrics
+        col_m1, col_m2, col_m3 = st.columns(3)
+        with col_m1:
+            total_meters = st.number_input("📏 Total Linear Meters Printed (m):", min_value=0.0, step=100.0)
+        with col_m2:
+            print_speed = st.number_input("⚡ Average Print Speed (m/min):", min_value=0, step=10)
+        with col_m3:
+            waste_kg = st.number_input("🗑️ Total Waste (KG):", min_value=0.0, step=1.0)
+            
+        # Row 3: Operator Notes
+        operator_notes = st.text_area("📝 Operator Notes (Optional):", placeholder="Any issues with inks, material, or machine?")
+
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 SAVE & CLOSE JOB", type="primary", use_container_width=True):
             st.session_state['machine_status'] = 'idle'
