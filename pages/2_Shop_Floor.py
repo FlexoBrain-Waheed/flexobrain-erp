@@ -8,7 +8,7 @@ st.set_page_config(
     page_title="Shop Floor Control", 
     page_icon="🏭", 
     layout="wide", 
-    initial_sidebar_state="collapsed" # Hides the sidebar for full-screen feel
+    initial_sidebar_state="collapsed"
 )
 
 # ==========================================
@@ -18,12 +18,9 @@ st.markdown("""
     <style>
     .kiosk-title { font-size: 3rem; font-weight: bold; text-align: center; color: #1E3A8A; margin-bottom: 20px;}
     .big-info { font-size: 1.5rem; font-weight: bold; color: #333; padding: 15px; background-color: #f0f2f6; border-radius: 10px; margin-bottom: 10px;}
-    /* Huge input box for Scanner Gun */
     .stTextInput input { font-size: 2.5rem !important; text-align: center; padding: 25px !important; border: 3px solid #1E3A8A;}
-    /* Giant Buttons */
     .stButton button { height: 100px; font-size: 2.2rem; font-weight: bold; border-radius: 15px; border: 3px solid #000; transition: 0.2s;}
     .stButton button:active { transform: scale(0.95); }
-    /* Big Selectbox */
     .stSelectbox label { font-size: 1.5rem !important; font-weight: bold; }
     .stNumberInput label { font-size: 1.5rem !important; font-weight: bold; }
     </style>
@@ -49,7 +46,7 @@ scanned_code = st.text_input("", placeholder="[ 📷 SCAN BARCODE / QR HERE ]", 
 # 5. Machine Logic & Workflow
 # ==========================================
 if scanned_code:
-    # --- Mockup Data (Will fetch from DB later) ---
+    # --- Mockup Data ---
     st.markdown("---")
     col_info1, col_info2 = st.columns(2)
     with col_info1:
@@ -62,17 +59,11 @@ if scanned_code:
 
     status = st.session_state['machine_status']
 
-    # ---------------------------------------------------------
-    # STATE 1: IDLE (Ready to print)
-    # ---------------------------------------------------------
     if status == 'idle':
         if st.button("▶️ START MACHINE", type="primary", use_container_width=True):
             st.session_state['machine_status'] = 'running'
             st.rerun()
 
-    # ---------------------------------------------------------
-    # STATE 2: RUNNING (Currently Printing)
-    # ---------------------------------------------------------
     elif status == 'running':
         st.success("🟢 MACHINE IS RUNNING... (Production Timer Active)", icon="⚙️")
         col_btn1, col_btn2 = st.columns(2)
@@ -86,34 +77,37 @@ if scanned_code:
                 st.session_state['machine_status'] = 'finished'
                 st.rerun()
 
-    # ---------------------------------------------------------
-    # STATE 3: PAUSED (Cascading Downtime Menus)
-    # ---------------------------------------------------------
     elif status == 'paused':
         st.error("🔴 MACHINE PAUSED! (Downtime Timer Active)", icon="🛑")
         
-        # Cascading Menu Dictionary for Flexo Printing
+        # Cascading Menu Dictionary - SPLIT FOR ACCURATE REPORTING
         downtime_reasons = {
             "🛢️ Ink & Print Unit": [
-                "Anilox Change / Deep Cleaning",
+                "Anilox Change",
+                "Anilox Deep Cleaning",
                 "Doctor Blade Replacement",
-                "Ink Viscosity / Color Correction"
+                "Ink Viscosity Adjustment",
+                "Color Correction"
             ],
             "🎞️ Substrate & Web": [
                 "Waiting for Mother Roll",
-                "Roll Splicing / Changeover",
-                "Web Break / Tension Issue",
+                "Roll Splicing",
+                "Web Break",
+                "Tension Issue",
                 "Low Corona Treatment"
             ],
             "🔬 Quality & Setup": [
                 "Waiting for QC Approval",
-                "Registration / Alignment Setup",
+                "Registration Setup",
+                "Color Alignment Issue",
                 "Mounting Cylinder Issue"
             ],
             "⏱️ Admin & Operations": [
                 "Shift Handover",
-                "Preventive Maintenance / Cleaning",
-                "Lunch / Rest Break"
+                "Preventive Maintenance",
+                "Machine Cleaning",
+                "Lunch Break",
+                "Rest Break"
             ]
         }
         
@@ -125,14 +119,10 @@ if scanned_code:
 
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("▶️ RESUME PRODUCTION", type="primary", use_container_width=True):
-            # Future: Save specific_reason and duration to Database here
             st.session_state['machine_status'] = 'running'
             st.session_state['downtime_start'] = None
             st.rerun()
 
-    # ---------------------------------------------------------
-    # STATE 4: FINISHED (Data Entry & Close)
-    # ---------------------------------------------------------
     elif status == 'finished':
         st.warning("⚠️ JOB FINISHED. Please enter Final Production Data.", icon="📝")
         
@@ -144,7 +134,6 @@ if scanned_code:
         
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 SAVE & CLOSE JOB", type="primary", use_container_width=True):
-            # Future: Update Supabase (Status='completed', Waste, End_Time)
             st.session_state['machine_status'] = 'idle'
             st.balloons()
             st.toast("Job Data Saved to Cloud Successfully!", icon="☁️")
