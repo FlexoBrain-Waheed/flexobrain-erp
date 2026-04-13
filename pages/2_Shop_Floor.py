@@ -18,7 +18,20 @@ st.markdown("""
     <style>
     .kiosk-title { font-size: 3rem; font-weight: bold; text-align: center; color: #1E3A8A; margin-bottom: 20px;}
     .big-info { font-size: 1.5rem; font-weight: bold; color: #333; padding: 15px; background-color: #f0f2f6; border-radius: 10px; margin-bottom: 10px;}
-    .stTextInput input { font-size: 2.5rem !important; text-align: center; padding: 25px !important; border: 3px solid #1E3A8A;}
+    
+    /* 🔥 The New Fix for Scanner Input Box 🔥 */
+    div[data-baseweb="input"] {
+        height: 90px !important;
+        border-radius: 10px !important;
+    }
+    .stTextInput input { 
+        font-size: 2.2rem !important; 
+        text-align: center !important; 
+        height: 90px !important; 
+        border: 3px solid #1E3A8A !important;
+        border-radius: 10px !important;
+    }
+    
     .stButton button { height: 100px; font-size: 2.2rem; font-weight: bold; border-radius: 15px; border: 3px solid #000; transition: 0.2s;}
     .stButton button:active { transform: scale(0.95); }
     .stSelectbox label { font-size: 1.5rem !important; font-weight: bold; }
