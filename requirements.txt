@@ -3,3 +3,6 @@ supabase
 openpyxl
 fpdf
 Pillow
+qrcode[pil]
+requests
+pandas
