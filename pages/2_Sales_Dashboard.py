@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from PIL import Image
 from supabase import create_client, Client
+import qrcode
 
 # --- Page configuration ---
 st.set_page_config(page_title="Sales Dashboard", page_icon="📊", layout="wide")
@@ -23,77 +24,68 @@ import auth
 auth.require_role(["sales", "admin"])
 auth.logout_button()
 
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 06 - Full Lifecycle Control</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 07 - Daily Folders & QR</div>", unsafe_allow_html=True)
 
 # ==========================================
-# --- Users & Digital Signature Dictionary ---
+# --- Users & Supabase Connection ---
 # ==========================================
-USERS_DB = {
-    "p11": "Eng. Amr Al mahmoudi",
-    "p22": "Production Manager",
-    "p33": "System Administrator"
-}
+USERS_DB = {"p11": "Eng. Amr Al mahmoudi", "p22": "Production Manager", "p33": "System Administrator"}
 current_user_id = st.session_state.get("user_id", "")
 current_user_name = USERS_DB.get(current_user_id, "Sales Department")
 
-# ==========================================
-# --- Supabase Database Connection ---
-# ==========================================
 @st.cache_resource
 def init_connection():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
 
 try:
     supabase: Client = init_connection()
-except Exception as e:
-    st.error("⚠️ Database connection failed. Please check Streamlit Secrets.")
+except Exception:
+    st.error("⚠️ Database connection failed.")
     st.stop()
 
 # ==========================================
-# --- PDF Generation Engine ---
+# --- PDF Engine (with QR Code) ---
 # ==========================================
 def create_pdf(data_dict, artwork_url=None, stamp_name="Sales Department"):
     pdf = FPDF()
     pdf.add_page()
     
+    # Generate QR Code
+    qr = qrcode.QRCode(version=1, box_size=2, border=1)
+    qr.add_data(data_dict.get("Job Order No", ""))
+    qr.make(fit=True)
+    img_qr = qr.make_image(fill_color="black", back_color="white")
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_qr:
+        img_qr.save(tmp_qr.name)
+        pdf.image(tmp_qr.name, x=175, y=10, w=25)
+        os.remove(tmp_qr.name)
+
     pdf.set_font("Arial", 'B', 16)
     doc_title = "Sales Job Order - BOPP Wrap Around Label"
     if "-R" in data_dict.get("Job Order No", ""):
         doc_title += " [ REVISED ]"
     
     pdf.cell(0, 10, doc_title, ln=True, align='C')
-    pdf.ln(2)
+    pdf.ln(5)
     
-    def safe_txt(txt):
-        return str(txt).encode('latin-1', 'replace').decode('latin-1')
-        
+    def safe_txt(txt): return str(txt).encode('latin-1', 'replace').decode('latin-1')
     def section_header(title):
-        pdf.set_font("Arial", 'B', 11)
-        pdf.set_fill_color(220, 220, 220)
+        pdf.set_font("Arial", 'B', 11); pdf.set_fill_color(220, 220, 220)
         pdf.cell(190, 8, safe_txt(title), border=1, ln=True, fill=True)
-        
     def row_2_cols(k1, v1, k2, v2):
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(45, 8, safe_txt(f"{k1}:"), border=1)
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(50, 8, safe_txt(v1)[:40], border=1)
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(45, 8, safe_txt(f"{k2}:"), border=1)
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(50, 8, safe_txt(v2)[:40], border=1, ln=True)
-
+        pdf.set_font("Arial", 'B', 10); pdf.cell(45, 8, safe_txt(f"{k1}:"), border=1)
+        pdf.set_font("Arial", '', 10); pdf.cell(50, 8, safe_txt(v1)[:40], border=1)
+        pdf.set_font("Arial", 'B', 10); pdf.cell(45, 8, safe_txt(f"{k2}:"), border=1)
+        pdf.set_font("Arial", '', 10); pdf.cell(50, 8, safe_txt(v2)[:40], border=1, ln=True)
     def row_full(k, v):
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(45, 8, safe_txt(f"{k}:"), border=1)
-        pdf.set_font("Arial", '', 10)
-        pdf.multi_cell(145, 8, safe_txt(v), border=1)
+        pdf.set_font("Arial", 'B', 10); pdf.cell(45, 8, safe_txt(f"{k}:"), border=1)
+        pdf.set_font("Arial", '', 10); pdf.multi_cell(145, 8, safe_txt(v), border=1)
 
     section_header("1. Order Information")
     row_2_cols("Job Order No", data_dict.get("Job Order No"), "Date", data_dict.get("Date"))
     row_2_cols("Customer Name", data_dict.get("Customer Name"), "Customer PO#", data_dict.get("Customer PO#"))
-    row_2_cols("Sales PO#", data_dict.get("Sales PO#"), "Customer ID", data_dict.get("Customer ID"))
+    row_2_cols("Product Code", data_dict.get("Product Code"), "Customer ID", data_dict.get("Customer ID"))
     row_full("Head Office Address", data_dict.get("Head Office Address"))
     row_full("Head Office City", data_dict.get("Head Office City"))
     pdf.ln(2)
@@ -122,55 +114,35 @@ def create_pdf(data_dict, artwork_url=None, stamp_name="Sales Department"):
     row_full("Delivery Address", data_dict.get("Delivery Address"))
     row_full("Remarks / Notes", data_dict.get("Remarks / Notes"))
     
-    pdf.ln(6)
-    current_y = pdf.get_y()
-    pdf.set_fill_color(245, 245, 245)
-    pdf.rect(10, current_y, 190, 32, 'F')
-    pdf.set_xy(15, current_y + 5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_text_color(0, 128, 0)
+    pdf.ln(6); current_y = pdf.get_y(); pdf.set_fill_color(245, 245, 245); pdf.rect(10, current_y, 190, 32, 'F')
+    pdf.set_xy(15, current_y + 5); pdf.set_font("Arial", 'B', 12); pdf.set_text_color(0, 128, 0)
     pdf.cell(0, 6, "[ APPROVED ] Digitally Approved & Sealed", ln=True)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", '', 10)
-    
+    pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", '', 10)
     current_time = datetime.datetime.now().strftime("%d-%m-%Y | %H:%M:%S")
-    pdf.set_x(15)
-    pdf.cell(0, 6, f"By: {stamp_name}", ln=True)
-    pdf.set_x(15)
-    pdf.cell(0, 6, f"Timestamp: {current_time}", ln=True)
-    pdf.set_x(15)
-    pdf.cell(0, 6, f"System ID: {data_dict.get('Job Order No')}", ln=True)
+    pdf.set_x(15); pdf.cell(0, 6, f"By: {stamp_name}", ln=True)
+    pdf.set_x(15); pdf.cell(0, 6, f"Timestamp: {current_time}", ln=True)
+    pdf.set_x(15); pdf.cell(0, 6, f"System ID: {data_dict.get('Job Order No')}", ln=True)
 
     if artwork_url and str(artwork_url).startswith("http"):
         try:
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 16)
-            pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C')
-            pdf.ln(5)
+            pdf.add_page(); pdf.set_font("Arial", 'B', 16)
+            pdf.cell(0, 10, "Page 2: Approved Artwork / Design", ln=True, align='C'); pdf.ln(5)
             response = requests.get(artwork_url, stream=True, timeout=10)
             if response.status_code == 200:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp_file:
-                    for chunk in response.iter_content(1024):
-                        tmp_file.write(chunk)
-                    tmp_path = tmp_file.name
-                pdf.image(tmp_path, x=10, y=30, w=190)
-                os.remove(tmp_path)
-        except:
-            pass
+                    for chunk in response.iter_content(1024): tmp_file.write(chunk)
+                pdf.image(tmp_file.name, x=10, y=30, w=190); os.remove(tmp_file.name)
+        except: pass
     return pdf.output(dest='S').encode('latin-1')
 
-# ==========================================
-# --- Helper Functions ---
-# ==========================================
 def map_db_to_pdf_dict(row):
-    date_created = str(row.get('created_at', '')).split('T')[0] if row.get('created_at') else ""
     return {
-        "Date": date_created,
+        "Date": str(row.get('created_at', '')).split('T')[0] if row.get('created_at') else "",
         "Job Order No": row.get('order_number', ''),
         "Customer Name": row.get('customer_name', ''),
         "Customer ID": row.get('customer_id', ''),
         "Customer PO#": row.get('customer_po', ''),
-        "Sales PO#": row.get('sales_po', ''),
+        "Product Code": row.get('product_code', ''),
         "Head Office Address": row.get('head_office_address', ''),
         "Head Office City": row.get('head_office_city', ''),
         "Delivery Address": row.get('delivery_address', ''),
@@ -222,66 +194,57 @@ except Exception as e:
 if not data:
     st.info("No orders found.")
 else:
-    status_config = {
-        'pending': '🟡 Pending',
-        'in progress': '🔵 In Progress',
-        'on hold': '⏸️ On Hold',
-        'cancelled': '❌ Cancelled',
-        'completed': '🟢 Completed'
-    }
+    df = pd.DataFrame(data)
+    # Extract just the date part for grouping
+    df['order_date'] = pd.to_datetime(df['created_at']).dt.date
+    
+    unique_dates = df['order_date'].unique()
+    status_config = {'pending':'🟡 Pending', 'in progress':'🔵 In Progress', 'on hold':'⏸️ On Hold', 'cancelled':'❌ Cancelled', 'completed':'🟢 Completed'}
 
-    for row in data:
-        current_status = str(row.get('status', 'pending')).lower()
-        status_disp = status_config.get(current_status, f"⚪ {current_status.upper()}")
-        expander_title = f"📦 Order: {row.get('order_number')} | Client: {row.get('customer_name')} | Status: {status_disp}"
+    # Loop through each date to create a Daily Folder
+    for d in unique_dates:
+        daily_orders = df[df['order_date'] == d]
+        total_qty = daily_orders['required_quantity'].sum()
         
-        with st.expander(expander_title):
-            st.markdown(f"**👤 Customer:** {row.get('customer_name')} | **📑 PO Number:** {row.get('customer_po', 'N/A')}")
-            st.markdown(f"**🚚 Delivery:** {row.get('delivery_city', 'N/A')} (Due: {row.get('due_date', 'N/A')})")
-            w, r = row.get('label_width_mm', 0), row.get('repeat_length_mm', 0)
-            st.markdown(f"**⚙️ Specs:** {row.get('material_type')} ({row.get('thickness_micron')}µ) | **Size:** {w} x {r} mm | **QTY:** {int(row.get('required_quantity', 0)):,} PCS")
-            art_url = row.get('artwork_url', '')
-            art_disp = f"[🔗 View Artwork]({art_url})" if art_url and art_url.startswith("http") else "No URL"
-            st.markdown(f"**🎨 Colors:** {row.get('colors_count')} | **Status:** {row.get('artwork_status')} | **Artwork:** {art_disp}")
-            st.markdown("---")
-            
-            # --- Action Center (5 Columns) ---
-            col1, col2, col3, col4, col5 = st.columns(5)
-            
-            with col1:
-                pdf_dict = map_db_to_pdf_dict(row)
-                pdf_file = create_pdf(pdf_dict, artwork_url=art_url, stamp_name=current_user_name)
-                st.download_button(label="📄 PDF", data=pdf_file, file_name=f"{row.get('order_number')}.pdf", key=f"pdf_{row['id']}", use_container_width=True)
-            
-            with col2:
-                if st.button("🔄 Repeat", key=f"rep_{row['id']}", use_container_width=True):
-                    st.session_state['repeat_data'] = row
-                    if 'edit_data' in st.session_state: del st.session_state['edit_data']
-                    st.success("Loaded as REPEAT. Go to Order Page.")
-
-            with col3:
-                # EDIT Button logic
-                if current_status in ['pending', 'on hold']:
-                    if st.button("✏️ Edit", key=f"edit_{row['id']}", use_container_width=True):
-                        st.session_state['edit_data'] = row
-                        if 'repeat_data' in st.session_state: del st.session_state['repeat_data']
-                        st.warning("EDIT Mode Active. Go to Order Page to revise.")
-                else:
-                    st.button("✏️ Edit", disabled=True, key=f"edit_dis_{row['id']}", use_container_width=True)
-
-            with col4:
-                if current_status == 'pending':
-                    if st.button("⏸️ Hold", key=f"hold_{row['id']}", use_container_width=True):
-                        update_order_status(row['id'], 'on hold'); st.rerun()
-                elif current_status == 'on hold':
-                    if st.button("▶️ Resume", type="primary", key=f"res_{row['id']}", use_container_width=True):
-                        update_order_status(row['id'], 'pending'); st.rerun()
-                else:
-                    st.button("🔒 Locked", disabled=True, key=f"l1_{row['id']}", use_container_width=True)
-            
-            with col5:
-                if current_status in ['pending', 'on hold']:
-                    if st.button("❌ Cancel", key=f"can_{row['id']}", use_container_width=True):
-                        update_order_status(row['id'], 'cancelled'); st.rerun()
-                else:
-                    st.button("🔒 Locked", disabled=True, key=f"l2_{row['id']}", use_container_width=True)
+        folder_title = f"📁 Orders for: {d.strftime('%Y-%m-%d')}  |  Orders: {len(daily_orders)}  |  Total QTY: {int(total_qty):,} PCS"
+        
+        with st.expander(folder_title, expanded=(d == unique_dates[0])): # Auto-expand only the latest day
+            for _, row_series in daily_orders.iterrows():
+                row = row_series.to_dict()
+                current_status = str(row.get('status', 'pending')).lower()
+                status_disp = status_config.get(current_status, f"⚪ {current_status.upper()}")
+                
+                # Visual Mini-Card
+                st.markdown(f"**📦 {row.get('order_number')}** | 👤 {row.get('customer_name')} | Status: {status_disp}")
+                w, r = row.get('label_width_mm', 0), row.get('repeat_length_mm', 0)
+                st.caption(f"⚙️ Specs: {row.get('material_type')} ({row.get('thickness_micron')}µ) | Size: {w}x{r} mm | QTY: {int(row.get('required_quantity', 0)):,} PCS")
+                
+                # --- Action Buttons (The Old Logic Kept Intact) ---
+                col1, col2, col3, col4, col5 = st.columns(5)
+                with col1:
+                    pdf_dict = map_db_to_pdf_dict(row)
+                    pdf_file = create_pdf(pdf_dict, artwork_url=row.get('artwork_url', ''), stamp_name=current_user_name)
+                    st.download_button("📄 PDF w/ QR", data=pdf_file, file_name=f"{row.get('order_number')}.pdf", key=f"pdf_{row['id']}", use_container_width=True)
+                with col2:
+                    if st.button("🔄 Repeat", key=f"rep_{row['id']}", use_container_width=True):
+                        st.session_state['repeat_data'] = row
+                        if 'edit_data' in st.session_state: del st.session_state['edit_data']
+                        st.success("Loaded as REPEAT. Go to Order Page.")
+                with col3:
+                    if current_status in ['pending', 'on hold']:
+                        if st.button("✏️ Edit", key=f"edit_{row['id']}", use_container_width=True):
+                            st.session_state['edit_data'] = row
+                            if 'repeat_data' in st.session_state: del st.session_state['repeat_data']
+                            st.warning("EDIT Mode Active. Go to Order Page.")
+                    else: st.button("✏️ Edit", disabled=True, key=f"edit_dis_{row['id']}", use_container_width=True)
+                with col4:
+                    if current_status == 'pending':
+                        if st.button("⏸️ Hold", key=f"hold_{row['id']}", use_container_width=True): update_order_status(row['id'], 'on hold'); st.rerun()
+                    elif current_status == 'on hold':
+                        if st.button("▶️ Resume", type="primary", key=f"res_{row['id']}", use_container_width=True): update_order_status(row['id'], 'pending'); st.rerun()
+                    else: st.button("🔒 Locked", disabled=True, key=f"l1_{row['id']}", use_container_width=True)
+                with col5:
+                    if current_status in ['pending', 'on hold']:
+                        if st.button("❌ Cancel", key=f"can_{row['id']}", use_container_width=True): update_order_status(row['id'], 'cancelled'); st.rerun()
+                    else: st.button("🔒 Locked", disabled=True, key=f"l2_{row['id']}", use_container_width=True)
+                st.markdown("---")
