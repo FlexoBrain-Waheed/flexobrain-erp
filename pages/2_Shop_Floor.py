@@ -1,83 +1,151 @@
 import streamlit as st
-import time
+import datetime
 
-# --- 1. Kiosk Mode Configuration ---
-# Setting layout to wide and hiding sidebar for a full-screen app feel
-st.set_page_config(page_title="Shop Floor Control", page_icon="🏭", layout="wide", initial_sidebar_state="collapsed")
+# ==========================================
+# 1. Kiosk Mode Configuration
+# ==========================================
+st.set_page_config(
+    page_title="Shop Floor Control", 
+    page_icon="🏭", 
+    layout="wide", 
+    initial_sidebar_state="collapsed" # Hides the sidebar for full-screen feel
+)
 
-# --- 2. Custom CSS for Factory UI ---
-# Making everything MASSIVE so workers can tap easily with gloves or dirty hands
+# ==========================================
+# 2. Custom CSS for Factory UI (Massive Elements)
+# ==========================================
 st.markdown("""
     <style>
     .kiosk-title { font-size: 3rem; font-weight: bold; text-align: center; color: #1E3A8A; margin-bottom: 20px;}
-    .big-info { font-size: 1.8rem; font-weight: bold; color: #333; padding: 10px; background-color: #f0f2f6; border-radius: 10px; margin-bottom: 10px;}
-    .stTextInput input { font-size: 2.5rem !important; text-align: center; height: 80px;}
-    .stButton button { height: 120px; font-size: 2.5rem; font-weight: bold; border-radius: 15px; border: 3px solid #000; }
+    .big-info { font-size: 1.5rem; font-weight: bold; color: #333; padding: 15px; background-color: #f0f2f6; border-radius: 10px; margin-bottom: 10px;}
+    /* Huge input box for Scanner Gun */
+    .stTextInput input { font-size: 2.5rem !important; text-align: center; padding: 25px !important; border: 3px solid #1E3A8A;}
+    /* Giant Buttons */
+    .stButton button { height: 100px; font-size: 2.2rem; font-weight: bold; border-radius: 15px; border: 3px solid #000; transition: 0.2s;}
+    .stButton button:active { transform: scale(0.95); }
+    /* Big Selectbox */
+    .stSelectbox label { font-size: 1.5rem !important; font-weight: bold; }
+    .stNumberInput label { font-size: 1.5rem !important; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='kiosk-title'>🏭 FlexoBrain - Shop Floor Control</div>", unsafe_allow_html=True)
+st.markdown("<div class='kiosk-title'>🏭 FlexoBrain - Shop Floor Terminal</div>", unsafe_allow_html=True)
 
-# --- 3. The Universal Scanner Input ---
-st.info("💡 Instructions: Use the Bluetooth Scanner Gun to scan the QR on the Job Order, or type it manually.")
-scanned_code = st.text_input("", placeholder="[ SCAN QR CODE HERE ]")
+# ==========================================
+# 3. State Management Initialization
+# ==========================================
+if 'machine_status' not in st.session_state:
+    st.session_state['machine_status'] = 'idle'
+if 'downtime_start' not in st.session_state:
+    st.session_state['downtime_start'] = None
 
-# --- 4. The State Machine & UI Logic ---
+# ==========================================
+# 4. Universal Scanner Input
+# ==========================================
+st.info("💡 Instructions: Use the Bluetooth Scanner Gun to scan the Job Order QR, or type it manually and press Enter.")
+scanned_code = st.text_input("", placeholder="[ 📷 SCAN BARCODE / QR HERE ]", key="barcode_input")
+
+# ==========================================
+# 5. Machine Logic & Workflow
+# ==========================================
 if scanned_code:
-    # --- Mockup Job Details (Later this will fetch from Supabase) ---
+    # --- Mockup Data (Will fetch from DB later) ---
     st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"<div class='big-info'>📦 Job No: {scanned_code}</div>", unsafe_allow_html=True)
-        st.markdown("<div class='big-info'>👤 Client: Mockup Customer Ltd.</div>", unsafe_allow_html=True)
-    with col2:
-        st.markdown("<div class='big-info'>🎨 Spec: BOPP White | 38u | 6 Colors</div>", unsafe_allow_html=True)
-        st.markdown("<div class='big-info'>📏 Target QTY: 50,000 PCS</div>", unsafe_allow_html=True)
+    col_info1, col_info2 = st.columns(2)
+    with col_info1:
+        st.markdown(f"<div class='big-info'>📦 Job No: <span style='color:green;'>{scanned_code}</span></div>", unsafe_allow_html=True)
+        st.markdown("<div class='big-info'>👤 Client: Al-Safi Dairy</div>", unsafe_allow_html=True)
+    with col_info2:
+        st.markdown("<div class='big-info'>⚙️ Spec: BOPP Transparent | 30µ | 8 Colors</div>", unsafe_allow_html=True)
+        st.markdown("<div class='big-info'>📏 Target QTY: 150,000 PCS</div>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # Manage the machine state using Session State
-    if 'machine_status' not in st.session_state:
-        st.session_state['machine_status'] = 'idle'
-    
     status = st.session_state['machine_status']
 
-    # State 1: IDLE (Ready to start)
+    # ---------------------------------------------------------
+    # STATE 1: IDLE (Ready to print)
+    # ---------------------------------------------------------
     if status == 'idle':
         if st.button("▶️ START MACHINE", type="primary", use_container_width=True):
             st.session_state['machine_status'] = 'running'
             st.rerun()
 
-    # State 2: RUNNING (Currently Printing)
+    # ---------------------------------------------------------
+    # STATE 2: RUNNING (Currently Printing)
+    # ---------------------------------------------------------
     elif status == 'running':
-        st.success("🟢 MACHINE IS RUNNING... TIMER STARTED", icon="⏳")
+        st.success("🟢 MACHINE IS RUNNING... (Production Timer Active)", icon="⚙️")
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             if st.button("⏸️ PAUSE (ISSUE)", use_container_width=True):
                 st.session_state['machine_status'] = 'paused'
+                st.session_state['downtime_start'] = datetime.datetime.now()
                 st.rerun()
         with col_btn2:
             if st.button("⏹️ FINISH JOB", use_container_width=True):
                 st.session_state['machine_status'] = 'finished'
                 st.rerun()
 
-    # State 3: PAUSED (Problem on the floor)
+    # ---------------------------------------------------------
+    # STATE 3: PAUSED (Cascading Downtime Menus)
+    # ---------------------------------------------------------
     elif status == 'paused':
-        st.error("🔴 MACHINE PAUSED! TIMER STOPPED", icon="🛑")
-        reason = st.selectbox("Select Reason for Downtime:", ["Technical / Mechanic Issue", "Waiting for Plates/Ink", "Web Break / Cleaning", "Lunch Break"])
-        if st.button("▶️ RESUME JOB", type="primary", use_container_width=True):
-            # Later: Save the 'reason' and 'duration' to DB
+        st.error("🔴 MACHINE PAUSED! (Downtime Timer Active)", icon="🛑")
+        
+        # Cascading Menu Dictionary for Flexo Printing
+        downtime_reasons = {
+            "🛢️ Ink & Print Unit": [
+                "Anilox Change / Deep Cleaning",
+                "Doctor Blade Replacement",
+                "Ink Viscosity / Color Correction"
+            ],
+            "🎞️ Substrate & Web": [
+                "Waiting for Mother Roll",
+                "Roll Splicing / Changeover",
+                "Web Break / Tension Issue",
+                "Low Corona Treatment"
+            ],
+            "🔬 Quality & Setup": [
+                "Waiting for QC Approval",
+                "Registration / Alignment Setup",
+                "Mounting Cylinder Issue"
+            ],
+            "⏱️ Admin & Operations": [
+                "Shift Handover",
+                "Preventive Maintenance / Cleaning",
+                "Lunch / Rest Break"
+            ]
+        }
+        
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+            category = st.selectbox("1. Select Issue Category:", list(downtime_reasons.keys()))
+        with col_r2:
+            specific_reason = st.selectbox("2. Select Specific Reason:", downtime_reasons[category])
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("▶️ RESUME PRODUCTION", type="primary", use_container_width=True):
+            # Future: Save specific_reason and duration to Database here
             st.session_state['machine_status'] = 'running'
+            st.session_state['downtime_start'] = None
             st.rerun()
 
-    # State 4: FINISHED (Data Entry before closing)
+    # ---------------------------------------------------------
+    # STATE 4: FINISHED (Data Entry & Close)
+    # ---------------------------------------------------------
     elif status == 'finished':
-        st.warning("⚠️ JOB FINISHED. PLEASE ENTER FINAL DATA.", icon="📝")
-        waste_kg = st.number_input("Enter Total Waste (KG):", min_value=0.0, step=1.0)
+        st.warning("⚠️ JOB FINISHED. Please enter Final Production Data.", icon="📝")
         
+        col_w1, col_w2 = st.columns(2)
+        with col_w1:
+            waste_kg = st.number_input("🗑️ Enter Total Waste (KG):", min_value=0.0, step=1.0)
+        with col_w2:
+            good_rolls = st.number_input("✅ Number of Good Rolls Produced:", min_value=0, step=1)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 SAVE & CLOSE JOB", type="primary", use_container_width=True):
-            # Later: Update Supabase with finish time and waste
+            # Future: Update Supabase (Status='completed', Waste, End_Time)
             st.session_state['machine_status'] = 'idle'
             st.balloons()
-            st.toast("Job Saved to Cloud Successfully!", icon="☁️")
-            # Clear input by re-running
+            st.toast("Job Data Saved to Cloud Successfully!", icon="☁️")
             st.rerun()
