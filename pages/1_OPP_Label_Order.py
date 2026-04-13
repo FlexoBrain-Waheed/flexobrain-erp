@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from PIL import Image
 from supabase import create_client, Client
+import qrcode
 
 # --- Page configuration ---
 st.set_page_config(page_title="BOPP Label Order", page_icon="📝", layout="wide")
@@ -24,7 +25,7 @@ auth.require_role(["sales", "admin"])
 auth.logout_button()
 
 # --- Version Control ---
-st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 21 - ISO Revision Control</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 23 - Smart ERP Edition</div>", unsafe_allow_html=True)
 
 # ==========================================
 # --- Users & Digital Signature Dictionary ---
@@ -70,7 +71,6 @@ def generate_order_number(supabase_client):
         for row in response.data:
             if row.get('order_number', '').startswith(prefix):
                 try:
-                    # Ignore revisions for the base sequence generator
                     base_num = row['order_number'].split('-R')[0]
                     seq = int(base_num.split('-')[-1])
                     seqs.append(seq)
@@ -82,7 +82,6 @@ def generate_order_number(supabase_client):
         return f"{prefix}999"
 
 def generate_revision_number(base_order_no):
-    """Generates an ISO standard revision number (-R1, -R2, etc.)"""
     if "-R" in base_order_no:
         parts = base_order_no.rsplit("-R", 1)
         try:
@@ -91,6 +90,28 @@ def generate_revision_number(base_order_no):
         except ValueError:
             return f"{base_order_no}-R1"
     return f"{base_order_no}-R1"
+
+def compress_image(image_file, quality=65):
+    img = Image.open(image_file)
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=quality, optimize=True)
+    buffer.seek(0)
+    return buffer
+
+# ==========================================
+# --- Fetch Customers for Autocomplete ---
+# ==========================================
+try:
+    cust_res = supabase.table("job_orders").select("customer_name, customer_id, head_office_address, head_office_city").execute()
+    # Create a unique list of customers based on name
+    if cust_res.data:
+        cust_df = pd.DataFrame(cust_res.data).drop_duplicates(subset=['customer_name']).dropna(subset=['customer_name'])
+    else:
+        cust_df = pd.DataFrame()
+except Exception:
+    cust_df = pd.DataFrame()
 
 # ==========================================
 # --- Mode Detection (Edit vs Repeat vs New) ---
@@ -101,17 +122,15 @@ old_order = st.session_state.get('repeat_data', {})
 is_edit_mode = bool(edit_order)
 is_repeat_mode = bool(old_order)
 
-# active_data dictates what fills the default values
 active_data = edit_order if is_edit_mode else old_order
 
-# Generate appropriate Job Order Number for display
 if is_edit_mode:
     target_job_order_no = generate_revision_number(active_data.get("order_number", ""))
 else:
     target_job_order_no = generate_order_number(supabase)
 
 # ==========================================
-# --- Smart Calculator Callbacks & State ---
+# --- Smart Web Calculator Callbacks ---
 # ==========================================
 if 'in_lines' not in st.session_state:
     st.session_state['in_lines'] = int(active_data.get("no_of_lines", 1))
@@ -136,20 +155,31 @@ def calc_smart_qty():
         st.session_state['in_qty'] = int(((mr_len * 1000) / rep) * lines * rolls)
 
 # ==========================================
-# --- PDF Engine ---
+# --- PDF Engine (with QR Code) ---
 # ==========================================
 def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales Department"):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
     
-    # Header distinction based on mode
+    # 1. Generate QR Code
+    qr = qrcode.QRCode(version=1, box_size=2, border=1)
+    qr.add_data(data_dict.get("Job Order No", ""))
+    qr.make(fit=True)
+    img_qr = qr.make_image(fill_color="black", back_color="white")
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_qr:
+        img_qr.save(tmp_qr.name)
+        pdf.image(tmp_qr.name, x=175, y=10, w=25)
+        os.remove(tmp_qr.name)
+
+    # 2. Main PDF Content
+    pdf.set_font("Arial", 'B', 16)
     doc_title = "Sales Job Order - BOPP Wrap Around Label"
     if "-R" in data_dict.get("Job Order No", ""):
         doc_title += " [ REVISED ]"
         
     pdf.cell(0, 10, doc_title, ln=True, align='C')
-    pdf.ln(2)
+    pdf.ln(5)
     
     def safe_txt(txt):
         return str(txt).encode('latin-1', 'replace').decode('latin-1')
@@ -178,7 +208,7 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
     section_header("1. Order Information")
     row_2_cols("Job Order No", data_dict.get("Job Order No"), "Date", data_dict.get("Date"))
     row_2_cols("Customer Name", data_dict.get("Customer Name"), "Customer PO#", data_dict.get("Customer PO#"))
-    row_2_cols("Sales PO#", data_dict.get("Sales PO#"), "Customer ID", data_dict.get("Customer ID"))
+    row_2_cols("Product Code", data_dict.get("Product Code"), "Customer ID", data_dict.get("Customer ID"))
     row_full("Head Office Address", data_dict.get("Head Office Address"))
     row_full("Head Office City", data_dict.get("Head Office City"))
     pdf.ln(2)
@@ -249,7 +279,7 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
                         tmp_path = tmp_file.name
                     pdf.image(tmp_path, x=10, y=30, w=190)
                     os.remove(tmp_path)
-        except Exception as e:
+        except Exception:
             pass
 
     return pdf.output(dest='S').encode('latin-1')
@@ -261,46 +291,96 @@ def create_pdf(data_dict, image_file=None, artwork_url=None, stamp_name="Sales D
 st.title("📝 Create / Edit Job Order - Wrap Around Label")
 
 if is_edit_mode:
-    st.warning(f"✏️ **EDIT MODE ACTIVE:** You are modifying Order **{active_data.get('order_number')}**. A new revision number **{target_job_order_no}** will be generated upon saving.")
+    st.warning(f"✏️ **EDIT MODE ACTIVE:** Modifying Order **{active_data.get('order_number')}**. Revision **{target_job_order_no}** will be generated.")
 elif is_repeat_mode:
-    st.info(f"🔄 **REPEAT MODE ACTIVE:** Auto-filling data based on previous Job Order **{active_data.get('order_number')}**")
+    st.info(f"🔄 **REPEAT/FETCH MODE ACTIVE:** Auto-filled data based on previous records.")
 
 st.markdown("---")
 
+# --- Smart Autocomplete Customer Section ---
 st.subheader("👤 1. Customer Information")
-col1, col2, col3 = st.columns(3)
-with col1:
-    date = st.date_input("Date", datetime.date.today(), key="in_date")
-    company_name = st.text_input("Company Name", value=active_data.get("customer_name", ""), key="in_company")
-with col2:
-    job_order_no = st.text_input("Job Order No.", value=target_job_order_no, disabled=True) 
-    customer_id = st.text_input("Customer ID", value=active_data.get("customer_id", ""), key="in_cust_id")
-with col3:
-    po_number = st.text_input("Customer's PO#", value=active_data.get("customer_po", ""), key="in_po")
-    sales_po = st.text_input("Sales PO#", value=active_data.get("sales_po", ""), key="in_sales_po")
+col_c1, col_c2, col_c3 = st.columns([2, 1, 1])
 
-col_addr1, col_addr2 = st.columns(2)
+with col_c1:
+    cust_list = ["[ + Add New Customer ]"]
+    if not cust_df.empty:
+        cust_list.extend(cust_df['customer_name'].tolist())
+    
+    # If active data has a customer, try to set it as default index
+    default_cust_name = active_data.get("customer_name", "")
+    cust_index = 0
+    if default_cust_name in cust_list:
+        cust_index = cust_list.index(default_cust_name)
+        
+    selected_cust = st.selectbox("Company Name", cust_list, index=cust_index)
+    
+    # Logic to populate fields based on selection
+    if selected_cust == "[ + Add New Customer ]":
+        company_name = st.text_input("Enter New Company Name", value=default_cust_name if default_cust_name not in cust_list and default_cust_name else "", key="in_new_comp")
+        c_id_val = active_data.get("customer_id", "")
+        h_addr_val = active_data.get("head_office_address", "")
+        h_city_val = active_data.get("head_office_city", "")
+    else:
+        company_name = selected_cust
+        # Fetch details from dataframe
+        row = cust_df[cust_df['customer_name'] == selected_cust].iloc[0]
+        c_id_val = str(row['customer_id']) if pd.notna(row['customer_id']) else ""
+        h_addr_val = str(row['head_office_address']) if pd.notna(row['head_office_address']) else ""
+        h_city_val = str(row['head_office_city']) if pd.notna(row['head_office_city']) else ""
+
+with col_c2:
+    date = st.date_input("Date", datetime.date.today(), key="in_date")
+with col_c3:
+    job_order_no = st.text_input("Job Order No.", value=target_job_order_no, disabled=True) 
+
+col_addr1, col_addr2, col_addr3 = st.columns(3)
 with col_addr1:
-    head_office_address = st.text_input("Company Head Office Address", value=active_data.get("head_office_address", ""), key="in_addr1")
+    customer_id = st.text_input("Customer ID", value=c_id_val, key="in_cust_id")
 with col_addr2:
-    head_office_city = st.text_input("Company Head Office City", value=active_data.get("head_office_city", ""), key="in_addr2")
+    head_office_address = st.text_input("Head Office Address", value=h_addr_val, key="in_addr1")
+with col_addr3:
+    head_office_city = st.text_input("Head Office City", value=h_city_val, key="in_addr2")
+
 st.markdown("---")
 
+# --- Product Specs & SAP Fetch ---
 st.subheader("⚙️ 2. Product Specs")
-st.text_input("Product Type", value="BOPP Wrap Around Label", disabled=True)
+col_sap1, col_sap2, col_sap3 = st.columns([2, 1, 1])
+
+with col_sap1:
+    product_code = st.text_input("Product Code", value=active_data.get("product_code", ""), key="in_prod_code")
+with col_sap2:
+    st.write(" ")
+    if st.button("🔍 Fetch Specs", use_container_width=True):
+        if product_code:
+            res = supabase.table("job_orders").select("*").eq("product_code", product_code).order("id", desc=True).limit(1).execute()
+            if res.data:
+                # Get order frequency data
+                freq_res = supabase.table("job_orders").select("id", count="exact").eq("product_code", product_code).execute()
+                count = freq_res.count if hasattr(freq_res, 'count') else "multiple"
+                last_date = str(res.data[0].get('created_at', '')).split('T')[0]
+                last_qty = res.data[0].get('required_quantity', 0)
+                
+                st.session_state['repeat_data'] = res.data[0]
+                st.success(f"✅ Loaded Specs! (Ordered {count} times. Last on {last_date} | Qty: {last_qty:,})")
+                st.rerun()
+            else:
+                st.info("New code detected. Please fill manually.")
+with col_sap3:
+    po_number = st.text_input("Customer's PO#", value=active_data.get("customer_po", ""), key="in_po")
 
 col_s1, col_s2, col_s3, col_s4 = st.columns(4)
 with col_s1:
-    product_code = st.text_input("Product Code (SAP)", value=active_data.get("product_code", ""), key="in_prod_code")
-with col_s2:
     mat_ops = ["BOPP", "PETG", "PE", "Other"]
     material_type = st.selectbox("Material Type", mat_ops, index=safe_idx(mat_ops, active_data.get("material_type", "BOPP")), key="in_mat_type")
-with col_s3:
+with col_s2:
     den_ops = [0.91, 0.92, 1.40]
     density = st.selectbox("Density (g/cm3)", den_ops, index=safe_idx(den_ops, float(active_data.get("density", 0.91)) if active_data.get("density") else 0.91), key="in_density") 
-with col_s4:
+with col_s3:
     thk_ops = [30, 35, 38, 40]
     thickness = st.selectbox("Thickness (u)", thk_ops, index=safe_idx(thk_ops, int(active_data.get("thickness_micron", 30)) if active_data.get("thickness_micron") else 30), key="in_thick")
+with col_s4:
+    colors_no = st.number_input("No. of Colors", min_value=1, max_value=10, value=int(active_data.get("colors_count", 1)) if active_data else 1, key="in_color_no")
 
 col_s5, col_s6, col_s7, col_s8 = st.columns(4)
 with col_s5:
@@ -311,113 +391,88 @@ with col_s7:
     color_choice = st.selectbox("Color of Film", ["Transparent", "White", "Other"], key="in_color_choice")
     color_of_film = st.text_input("Specify Color:", value=active_data.get("color_of_film", "Transparent"), key="in_spec_color") if color_choice == "Other" else color_choice
 with col_s8:
-    colors_no = st.number_input("No. of Colors", min_value=1, max_value=10, value=int(active_data.get("colors_count", 1)) if active_data else 1, key="in_color_no")
-
-col_s9, col_s10 = st.columns(2)
-with col_s9:
     art_ops = ["NEW", "REPEAT"]
     artwork = st.selectbox("Artwork Status", art_ops, index=safe_idx(art_ops, active_data.get("artwork_status", "NEW")), key="in_art_stat")
-with col_s10:
-    artwork_no = st.text_input("Artwork No.", value=active_data.get("artwork_number", ""), key="in_art_no") 
 
-st.markdown("#### 🧻 Print, Core & Winding Specifications")
-col_w1, col_w2 = st.columns(2)
+st.markdown("#### 🧻 Print, Core & Winding")
+col_w1, col_w2, col_d1, col_d4 = st.columns(4)
 with col_w1:
     print_ops = ["Reverse Print", "Surface Print"]
     print_position = st.selectbox("Print Surface", print_ops, index=safe_idx(print_ops, active_data.get("print_surface", "Reverse Print")), key="in_print_surf")
 with col_w2:
     fmt_ops = ["Roll", "Cut (Pieces)"]
-    final_format = st.selectbox("Final Product Format", fmt_ops, index=safe_idx(fmt_ops, active_data.get("final_format", "Roll")), key="in_final_form")
-
-col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+    final_format = st.selectbox("Final Format", fmt_ops, index=safe_idx(fmt_ops, active_data.get("final_format", "Roll")), key="in_final_form")
 with col_d1:
     core_ops = ["3 inch", "6 inch"]
     inner_core = st.selectbox("Inner Core", core_ops, index=safe_idx(core_ops, active_data.get("inner_core", "6 inch")) if active_data else 1, key="in_inner_core")
-with col_d2:
-    ctype_ops = ["Paper", "Plastic"]
-    core_type = st.selectbox("Core Type", ctype_ops, index=safe_idx(ctype_ops, active_data.get("core_type", "Paper")), key="in_core_type")
-with col_d3:
-    core_thickness = st.number_input("Wall Thickness (mm)", min_value=0.0, value=float(active_data.get("core_wall_thickness_mm", 0.0)), key="in_core_thick")
 with col_d4:
     wind_ops = ["Clockwise #4", "Anti-clockwise #3"]
     winding_direction = st.selectbox("Winding Direction", wind_ops, index=safe_idx(wind_ops, active_data.get("winding_direction", "Clockwise #4")), key="in_wind_dir")
 
-st.markdown("#### 🧮 Smart Web & Production Calculator")
-col_edge, _, _, _ = st.columns(4)
+st.markdown("#### 🧮 Smart Web Calculator")
+col_edge, col_calc1, col_calc_rolls = st.columns(3)
 with col_edge:
     edge_trim = st.number_input("Target Edge Trim (mm)", min_value=0.0, value=float(active_data.get("edge_trim_mm", 24.0)), key="in_edge", on_change=calc_smart_lines)
-
-col_calc1, col_calc_rolls, col_calc2, col_calc3 = st.columns(4)
 with col_calc1:
     mother_roll_length = st.number_input("Mother Roll Length (m)", min_value=0.0, value=float(active_data.get("mother_roll_length_m", 0.0)), key="in_mr_len", on_change=calc_smart_qty)
 with col_calc_rolls:
     no_of_rolls = st.number_input("No. of Rolls", min_value=1, value=int(active_data.get("no_of_rolls", 1)), key="in_rolls", on_change=calc_smart_qty)
+
+col_calc2, col_calc3, col_calc4 = st.columns(3)
 with col_calc2:
     mother_roll_width = st.number_input("Mother Roll Width (mm)", min_value=0.0, value=float(active_data.get("mother_roll_width_mm", 0.0)), key="in_mr_width", on_change=calc_smart_lines)
 with col_calc3:
     no_of_lines = st.number_input("No. of Lines (Lanes)", min_value=1, key="in_lines", on_change=calc_smart_qty)
-
-pcs_per_roll = int((mother_roll_length * 1000) / repeat_length) if mother_roll_length > 0 and repeat_length > 0 else 0
-waste_by_mm = float(mother_roll_width - (width * no_of_lines)) if mother_roll_width > 0 and width > 0 and no_of_lines > 0 else 0.0
-unused_waste = float(waste_by_mm - edge_trim) if waste_by_mm > 0 else 0.0
-
-col_calc5, col_calc6, col_calc7, _ = st.columns(4)
-with col_calc5:
-    st.number_input("Pcs / Roll", value=pcs_per_roll, disabled=True)
-with col_calc6:
-    st.number_input("Total Waste (mm)", value=waste_by_mm, disabled=True)
-with col_calc7:
-    st.number_input("Unused Waste (mm)", value=unused_waste, disabled=True)
+with col_calc4:
+    core_type = st.selectbox("Core Type", ["Paper", "Plastic"], index=safe_idx(["Paper", "Plastic"], active_data.get("core_type", "Paper")))
 
 width_error = False
 required_roll_width = (width * no_of_lines) + edge_trim
 if mother_roll_width > 0 and required_roll_width > mother_roll_width:
-    st.error(f"❌ Engineering Alert: Required production width ({required_roll_width} mm) exceeds Mother Roll Width ({mother_roll_width} mm). Please check measurements.")
+    st.error(f"❌ Engineering Alert: Required width ({required_roll_width} mm) exceeds Mother Roll Width ({mother_roll_width} mm).")
     width_error = True
-
-total_labels_calculated = 0
-if mother_roll_length > 0 and repeat_length > 0 and no_of_lines > 0 and no_of_rolls > 0:
-    total_labels_calculated = pcs_per_roll * no_of_lines * no_of_rolls
-    st.info(f"💡 Calculated Total Quantity: **{total_labels_calculated:,}** PCS")
 
 st.markdown("---")
 st.subheader("📦 3. Quantity, Delivery & Artwork")
 
-uploaded_design = st.file_uploader("🖼️ Upload Approved Design", type=["jpg", "jpeg", "png"], key="in_upload")
+col_q1, col_q2, col_q3 = st.columns(3) 
+with col_q1:
+    quantity = st.number_input("Required Quantity (PCS)", min_value=0, step=1000, key="in_qty") 
+with col_q2:
+    delivery_city = st.text_input("Delivery City", value=active_data.get("delivery_city", "")) 
+with col_q3:
+    default_date = datetime.date.today()
+    try:
+        if active_data.get("due_date"): default_date = datetime.datetime.strptime(active_data["due_date"], "%Y-%m-%d").date()
+    except: pass
+    due_date = st.date_input("Due Date", default_date)
+
+# --- Net Weight Calculator Logic ---
+if width > 0 and repeat_length > 0 and thickness > 0 and quantity > 0:
+    # Standard Flexo Formula: (Width in m) * (Repeat in m) * Thickness (micron) * Density * QTY / 1000
+    net_weight_kg = (width / 1000) * (repeat_length / 1000) * thickness * density * quantity / 1000
+    st.info(f"⚖️ **Estimated Net Weight:** {net_weight_kg:,.2f} KG")
+else:
+    st.info("⚖️ **Estimated Net Weight:** 0.00 KG")
+
+# --- File Uploader with 2MB Limit ---
+MAX_FILE_SIZE_MB = 2
+MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
+
+uploaded_design = st.file_uploader(f"🖼️ Upload Approved Design (Max {MAX_FILE_SIZE_MB}MB, will be compressed)", type=["jpg", "jpeg", "png"])
 existing_artwork_url = active_data.get('artwork_url', "")
 
 if uploaded_design is not None:
-    st.image(uploaded_design, caption="New Artwork Uploaded", width=200)
+    if uploaded_design.size > MAX_FILE_SIZE_BYTES:
+        st.error(f"❌ File is too large! ({uploaded_design.size / (1024*1024):.2f} MB). Maximum allowed size is {MAX_FILE_SIZE_MB} MB.")
+    else:
+        st.image(uploaded_design, caption="New Artwork (Size OK)", width=200)
 elif existing_artwork_url and str(existing_artwork_url).startswith("http"):
     st.success("🔄 USING EXISTING DESIGN PREVIOUSLY ATTACHED")
-    try:
-        st.image(existing_artwork_url, caption="Existing design", width=200)
-    except Exception:
-        st.info("Existing design link attached to order.")
+    try: st.image(existing_artwork_url, caption="Existing design", width=200)
+    except Exception: pass
 
-col_q1, col_q2, col_q3 = st.columns(3) 
-with col_q1:
-    quantity = st.number_input("Required Quantity", min_value=0, step=1000, key="in_qty") 
-with col_q2:
-    delivery_city = st.text_input("Delivery City", value=active_data.get("delivery_city", ""), key="in_city") 
-with col_q3:
-    delivery_address = st.text_input("Delivery Address", value=active_data.get("delivery_address", ""), key="in_addr_deliv")
-
-col_q4, col_q5 = st.columns(2)
-with col_q4:
-    # Handle potentially missing or differently formatted dates gracefully
-    default_date = datetime.date.today()
-    try:
-        if active_data.get("due_date"):
-            default_date = datetime.datetime.strptime(active_data["due_date"], "%Y-%m-%d").date()
-    except:
-        pass
-    due_date = st.date_input("Due Date", default_date, key="in_due")
-    
-with col_q5:
-    packaging = st.text_input("Packaging", value=active_data.get("packaging_notes", "Suitable / As Usual"), key="in_pack")
-
-notes = st.text_area("Remarks / Notes", value=active_data.get("remarks", ""), key="in_notes")
+notes = st.text_area("Remarks / Notes", value=active_data.get("remarks", ""))
 
 # PDF Data Dictionary
 pdf_data = {
@@ -426,10 +481,10 @@ pdf_data = {
     "Customer Name": company_name,
     "Customer ID": customer_id,
     "Customer PO#": po_number,
-    "Sales PO#": sales_po,          
+    "Product Code": product_code,          
     "Head Office Address": head_office_address,
     "Head Office City": head_office_city,
-    "Delivery Address": delivery_address,
+    "Delivery Address": active_data.get("delivery_address", ""),
     "Delivery City": delivery_city, 
     "Product Type": "BOPP Wrap Around Label", 
     "Material Type": material_type, 
@@ -440,17 +495,17 @@ pdf_data = {
     "Colors": str(colors_no),
     "Color of Film": color_of_film, 
     "Artwork Status": artwork,
-    "Artwork No.": artwork_no,
+    "Artwork No.": active_data.get("artwork_number", ""),
     "Print Surface": print_position,
     "Final Format": final_format, 
     "Inner Core": inner_core,
     "Core Type": core_type,                 
-    "Wall Thickness (mm)": str(core_thickness),  
+    "Wall Thickness (mm)": str(active_data.get("core_wall_thickness_mm", 0.0)),  
     "Winding Direction": winding_direction,
     "Mother Roll Width (mm)": str(mother_roll_width),
     "Edge Trim (mm)": str(edge_trim),
     "Required Quantity": str(quantity),
-    "Packaging": packaging,
+    "Packaging": active_data.get("packaging_notes", "As Usual"),
     "Due Date": str(due_date),
     "Remarks / Notes": notes
 }
@@ -460,31 +515,28 @@ st.subheader("🎯 Actions")
 btn_col1, btn_col2, btn_col3 = st.columns(3) 
 
 with btn_col1:
-    # Button text adapts to mode
     save_btn_text = "🔄 Update Order (Revision)" if is_edit_mode else "💾 Save to Cloud & Send"
     
     if st.button(save_btn_text, type="primary", use_container_width=True):
-        if width_error:
+        if uploaded_design is not None and uploaded_design.size > MAX_FILE_SIZE_BYTES:
+            st.error(f"❌ Cannot save. Artwork exceeds {MAX_FILE_SIZE_MB} MB.")
+        elif width_error:
             st.error("❌ Cannot save. Please fix the width calculation errors first.")
-        elif not company_name:
-            st.error("❌ Please enter Customer Name before saving.")
+        elif not company_name or company_name == "[ + Add New Customer ]":
+            st.error("❌ Please enter or select a valid Customer Name before saving.")
         else:
-            with st.spinner("Processing data to cloud..."):
+            with st.spinner("Processing data & Compressing Image..."):
                 try:
                     final_url_to_save = existing_artwork_url
                     
-                    # --- Storage Upload Logic ---
                     if uploaded_design is not None:
-                        file_ext = uploaded_design.name.split('.')[-1]
-                        file_name = f"{target_job_order_no}.{file_ext}"
-                        file_bytes = uploaded_design.getvalue()
-                        mime_type = uploaded_design.type
-                        
+                        compressed_buffer = compress_image(uploaded_design)
+                        file_name = f"{target_job_order_no}.jpg"
                         try:
                             supabase.storage.from_('artworks').upload(
                                 path=file_name,
-                                file=file_bytes,
-                                file_options={"content-type": mime_type}
+                                file=compressed_buffer.getvalue(),
+                                file_options={"content-type": "image/jpeg"}
                             )
                             final_url_to_save = supabase.storage.from_('artworks').get_public_url(file_name)
                         except Exception as upload_err:
@@ -494,11 +546,11 @@ with btn_col1:
                         "order_number": target_job_order_no,
                         "customer_name": company_name,
                         "customer_po": po_number,
-                        "sales_po": sales_po,
+                        "sales_po": active_data.get("sales_po", ""),
                         "customer_id": customer_id,
                         "head_office_address": head_office_address,
                         "head_office_city": head_office_city,
-                        "delivery_address": delivery_address,
+                        "delivery_address": active_data.get("delivery_address", ""),
                         "delivery_city": delivery_city,
                         "product_type": "BOPP Wrap Around Label",
                         "product_code": product_code,
@@ -510,13 +562,13 @@ with btn_col1:
                         "color_of_film": color_of_film,
                         "colors_count": int(colors_no) if colors_no else 0,
                         "artwork_status": artwork,
-                        "artwork_number": artwork_no,
+                        "artwork_number": active_data.get("artwork_number", ""),
                         "artwork_url": final_url_to_save,
                         "print_surface": print_position,
                         "final_format": final_format,
                         "inner_core": inner_core,
                         "core_type": core_type,
-                        "core_wall_thickness_mm": float(core_thickness) if core_thickness else 0.0,
+                        "core_wall_thickness_mm": float(active_data.get("core_wall_thickness_mm", 0.0)),
                         "winding_direction": winding_direction,
                         "mother_roll_length_m": float(mother_roll_length) if mother_roll_length else 0.0,
                         "no_of_rolls": int(no_of_rolls) if no_of_rolls else 0,
@@ -524,27 +576,22 @@ with btn_col1:
                         "mother_roll_width_mm": float(mother_roll_width) if mother_roll_width else 0.0,
                         "edge_trim_mm": float(edge_trim) if edge_trim else 0.0,
                         "required_quantity": int(quantity) if quantity else 0,
-                        "packaging_notes": packaging,
+                        "packaging_notes": active_data.get("packaging_notes", ""),
                         "due_date": str(due_date),
                         "remarks": notes,
                         "status": "pending"
                     }
                     
                     if is_edit_mode:
-                        # UPDATE existing record using its unique database ID
-                        response = supabase.table("job_orders").update(db_data).eq("id", active_data["id"]).execute()
+                        supabase.table("job_orders").update(db_data).eq("id", active_data["id"]).execute()
                         st.success(f"✅ Order successfully UPDATED as {target_job_order_no}!")
                     else:
-                        # INSERT new record
-                        response = supabase.table("job_orders").insert(db_data).execute()
+                        supabase.table("job_orders").insert(db_data).execute()
                         st.success(f"✅ Order successfully saved to Cloud as {target_job_order_no}!")
                         st.balloons()
                     
-                    # Clear states after successful save
-                    if 'repeat_data' in st.session_state:
-                        del st.session_state['repeat_data']
-                    if 'edit_data' in st.session_state:
-                        del st.session_state['edit_data']
+                    if 'repeat_data' in st.session_state: del st.session_state['repeat_data']
+                    if 'edit_data' in st.session_state: del st.session_state['edit_data']
                         
                 except Exception as e:
                     st.error(f"❌ Database Error: {str(e)}")
@@ -554,7 +601,7 @@ with btn_col2:
     pdf_file = create_pdf(pdf_data, image_file=uploaded_design, artwork_url=pdf_url, stamp_name=current_user_name)
     
     st.download_button(
-        label="📄 Export PDF",
+        label="📄 Export PDF (w/ QR)",
         data=pdf_file,
         file_name=f"{target_job_order_no}.pdf",
         mime="application/pdf",
@@ -562,7 +609,7 @@ with btn_col2:
     )
 
 with btn_col3:
-    if st.button("🗑️ Reset Form / Exit Edit Mode", use_container_width=True):
+    if st.button("🗑️ Reset Form / Exit Edit", use_container_width=True):
         for key in list(st.session_state.keys()):
             if key not in ["authenticated", "role", "user_id"]:
                 del st.session_state[key]
