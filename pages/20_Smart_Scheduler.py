@@ -20,13 +20,13 @@ auth.logout_button()
 st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 01 - FlexoBrain AI Scheduler</div>", unsafe_allow_html=True)
 
 # ==========================================
-# --- Supabase Database Connection (Corrected) ---
+# --- Supabase Database Connection (Secure) ---
 # ==========================================
 @st.cache_resource
 def init_connection():
-    # Corrected URL (Removed the extra typo letter)
-    url = "https://rhyupeqypyunfknahsuv.supabase.co"
-    key = "sb_publishable_7781KhsQjsyYHALLIkf-Gg_qz8AVA46"
+    # Safely fetching credentials from Streamlit Secrets
+    url = st.secrets["SUPABASE_URL"].strip()
+    key = st.secrets["SUPABASE_KEY"].strip()
     return create_client(url, key)
 
 try:
