@@ -28,11 +28,21 @@ st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Versi
 USERS_DB = {"p11": "Eng. Amr Al mahmoudi", "p22": "Production Manager", "p33": "System Administrator"}
 current_user_name = USERS_DB.get(st.session_state.get("user_id", ""), "Sales Department")
 
+# ==========================================
+# --- Supabase Database Connection ---
+# ==========================================
 @st.cache_resource
-def init_connection(): return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+def init_connection():
+    # 🛑 FIX: Using the correct nested structure for Streamlit Cloud secrets
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
+    return create_client(url, key)
 
-try: supabase: Client = init_connection()
-except: st.error("⚠️ DB failed."); st.stop()
+try:
+    supabase: Client = init_connection()
+except Exception as e:
+    st.error(f"⚠️ Database connection failed: {e}")
+    st.stop()
 
 def create_pdf(data_dict, artwork_url=None, stamp_name="Sales Department"):
     pdf = FPDF()
