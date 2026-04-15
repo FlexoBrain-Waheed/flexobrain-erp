@@ -39,13 +39,13 @@ current_user_id = st.session_state.get("user_id", "")
 current_user_name = USERS_DB.get(current_user_id, "Sales Department")
 
 # ==========================================
-# --- Supabase Database Connection (Corrected) ---
+# --- Supabase Database Connection (Secure) ---
 # ==========================================
 @st.cache_resource
 def init_connection():
-    # Corrected URL (Removed the extra typo letter)
-    url = "https://rhyupeqypyunfknahsuv.supabase.co"
-    key = "sb_publishable_7781KhsQjsyYHALLIkf-Gg_qz8AVA46"
+    # Safely fetching credentials from Streamlit Secrets
+    url = st.secrets["SUPABASE_URL"].strip()
+    key = st.secrets["SUPABASE_KEY"].strip()
     return create_client(url, key)
 
 try:
