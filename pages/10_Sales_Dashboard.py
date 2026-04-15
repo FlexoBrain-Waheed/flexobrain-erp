@@ -29,23 +29,27 @@ USERS_DB = {"p11": "Eng. Amr Al mahmoudi", "p22": "Production Manager", "p33": "
 current_user_name = USERS_DB.get(st.session_state.get("user_id", ""), "Sales Department")
 
 # ==========================================
-# --- Supabase Database Connection (SMART) ---
+# --- Supabase Database Connection (Bulletproof) ---
 # ==========================================
 @st.cache_resource
 def init_connection():
     try:
-        # Smart detection: Checks both flat and nested secret formats
+        # Smart detection
         if "SUPABASE_URL" in st.secrets:
-            url = st.secrets["SUPABASE_URL"]
-            key = st.secrets["SUPABASE_KEY"]
+            raw_url = str(st.secrets["SUPABASE_URL"])
+            raw_key = str(st.secrets["SUPABASE_KEY"])
         elif "supabase" in st.secrets:
-            url = st.secrets["supabase"]["url"]
-            key = st.secrets["supabase"]["key"]
+            raw_url = str(st.secrets["supabase"]["url"])
+            raw_key = str(st.secrets["supabase"]["key"])
         else:
-            st.error("⚠️ Credentials missing. Please add Supabase keys to Streamlit Secrets.")
+            st.error("⚠️ Credentials missing in Secrets.")
             st.stop()
             
-        return create_client(str(url).strip(), str(key).strip())
+        # 🛑 Aggressive Cleanup: Remove accidental quotes and spaces
+        clean_url = raw_url.strip().replace('"', '').replace("'", "")
+        clean_key = raw_key.strip().replace('"', '').replace("'", "")
+        
+        return create_client(clean_url, clean_key)
     except Exception as e:
         st.error(f"⚠️ Secrets parsing error: {e}")
         st.stop()
@@ -53,7 +57,7 @@ def init_connection():
 try:
     supabase: Client = init_connection()
 except Exception as e:
-    st.error(f"⚠️ Database connection failed: {e}")
+    st.error(f"Error fetching data: {e}")
     st.stop()
 
 # ==========================================
