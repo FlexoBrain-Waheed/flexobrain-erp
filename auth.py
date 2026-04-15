@@ -1,83 +1,68 @@
 import streamlit as st
+import json
+import os
 
-# ==========================================
-# 1. Define Roles and Passwords
-# ==========================================
-ROLE_PASSWORDS = {
-    "p11": "sales",       # Sales Department
-    "p22": "production",  # Production Department
-    "p33": "admin"        # Top Management (Full Access)
-}
+DB_FILE = "users_db.json"
 
-# ==========================================
-# 2. Elegant Login Interface
-# ==========================================
+def load_users():
+    if not os.path.exists(DB_FILE):
+        return {"admin": {"password": "123", "name": "System Administrator", "role": "admin"}}
+    with open(DB_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 def login_form():
     st.markdown("<br><br>", unsafe_allow_html=True)
-    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🧠 FlexoBrain ERP</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: gray;'>Please enter your department password</p>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #1E3A8A;'>🏭 FlexoBrain ERP</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: gray;'>Employee Login Portal</p>", unsafe_allow_html=True)
+    
+    users_db = load_users()
     
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         with st.container(border=True):
-            password = st.text_input("Password", type="password", key="login_pass")
+            username = st.text_input("👤 Employee ID (Username)", key="login_user")
+            password = st.text_input("🔒 Password", type="password", key="login_pass")
+            
             if st.button("🚪 Login", type="primary", use_container_width=True):
-                if password in ROLE_PASSWORDS:
-                    # Save login state and set user role
+                if username in users_db and users_db[username]["password"] == password:
                     st.session_state["authenticated"] = True
-                    st.session_state["role"] = ROLE_PASSWORDS[password]
-                    st.session_state["user_id"] = password  # <--- Added to track specific user ID
+                    st.session_state["username"] = username
+                    st.session_state["role"] = users_db[username]["role"]
+                    st.session_state["name"] = users_db[username]["name"]
                     st.rerun()
                 else:
-                    st.error("❌ Invalid Password!")
+                    st.error("❌ Invalid Username or Password!")
 
-# ==========================================
-# 3. Core Authentication Function
-# ==========================================
 def check_password():
-    """Checks if the user is already logged in."""
+    """Checks if the user is logged in. If not, shows the login form."""
     if not st.session_state.get("authenticated"):
         login_form()
-        st.stop() # Stops the rest of the page from running until logged in
+        st.stop()
     return True
 
-# ==========================================
-# 4. Department Guard (Role Access Control)
-# ==========================================
 def require_role(allowed_roles):
-    """
-    Allows access only to specified roles (and always allows admin).
-    allowed_roles: list, e.g., ["sales"]
-    """
-    check_password() # Ensure user is logged in first
-    
+    """Guards pages based on user roles."""
+    check_password()
     current_role = st.session_state.get("role")
     
-    # Admin has a master key, can enter anywhere
+    # Admin has master access
     if current_role == "admin":
         return True
-        
-    # If user role is in the allowed roles for this page
+    
     if current_role in allowed_roles:
         return True
-    
-    # If an employee tries to access an unauthorized page:
-    st.error("⛔ Sorry, you do not have permission to access this section.")
-    st.info("💡 This section is reserved for other departments. Please select your department's page from the sidebar.")
+        
+    st.error("⛔ Access Denied. You do not have permission to view this section.")
     st.stop()
 
-# ==========================================
-# 5. Logout Button
-# ==========================================
 def logout_button():
-    """Places a logout button in the sidebar."""
+    """Displays user info and a logout button in the sidebar."""
     if st.session_state.get("authenticated"):
         st.sidebar.markdown("---")
-        # Display department role for clarity
-        role_display = st.session_state.get("role").upper()
-        st.sidebar.caption(f"👤 Logged in as: **{role_display}**")
+        name = st.session_state.get("name")
+        role = st.session_state.get("role").upper()
+        st.sidebar.caption(f"👤 {name} ({role})")
         
-        if st.sidebar.button("Logout 🚪", use_container_width=True):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
+        if st.sidebar.button("🚪 Logout", use_container_width=True):
+            st.session_state.clear()
             st.rerun()
