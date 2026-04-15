@@ -24,9 +24,9 @@ st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Versi
 # ==========================================
 @st.cache_resource
 def init_connection():
-    # 🛑 FIX: Using the correct nested structure for Streamlit Cloud secrets
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
+    # Using direct flat keys to avoid TOML parsing errors
+    url = st.secrets["SUPABASE_URL"].strip()
+    key = st.secrets["SUPABASE_KEY"].strip()
     return create_client(url, key)
 
 try:
