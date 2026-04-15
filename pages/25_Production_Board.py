@@ -25,14 +25,15 @@ st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Versi
 # ==========================================
 @st.cache_resource
 def init_connection():
-    url = st.secrets["SUPABASE_URL"]
-    key = st.secrets["SUPABASE_KEY"]
+    # 🛑 FIX: Using the correct nested structure for Streamlit Cloud secrets
+    url = st.secrets["supabase"]["url"]
+    key = st.secrets["supabase"]["key"]
     return create_client(url, key)
 
 try:
     supabase: Client = init_connection()
 except Exception as e:
-    st.error("⚠️ Database connection failed. Please check Streamlit Secrets.")
+    st.error(f"⚠️ Database connection failed: {e}")
     st.stop()
 
 # ==========================================
