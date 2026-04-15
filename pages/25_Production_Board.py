@@ -21,21 +21,33 @@ auth.logout_button()
 st.markdown("<div style='text-align: right; color: gray; font-size: 12px;'>Version No. 07 - FlexoBrain Live DB & Requisitions</div>", unsafe_allow_html=True)
 
 # ==========================================
-# --- Supabase Database Connection ---
+# --- Universal Database Connection ---
 # ==========================================
 @st.cache_resource
 def init_connection():
-    # 🛑 FIX: Using the correct nested structure for Streamlit Cloud secrets
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
-    return create_client(url, key)
+    try:
+        # Fetching the secrets
+        raw_url = st.secrets.get("SUPABASE_URL", "")
+        raw_key = st.secrets.get("SUPABASE_KEY", "")
+        
+        # Radical Cleanup: Remove ALL invisible spaces, newlines, and literal quotes
+        clean_url = str(raw_url).strip().replace('"', '').replace("'", "").replace("\n", "")
+        clean_key = str(raw_key).strip().replace('"', '').replace("'", "").replace("\n", "")
+        
+        if not clean_url or not clean_key:
+            st.error("⚠️ Credentials missing. Check Streamlit Secrets.")
+            st.stop()
+            
+        return create_client(clean_url, clean_key)
+    except Exception as e:
+        st.error(f"⚠️ Connection Error: {e}")
+        st.stop()
 
 try:
     supabase: Client = init_connection()
 except Exception as e:
-    st.error(f"⚠️ Database connection failed: {e}")
+    st.error(f"⚠️ DB Error: {e}")
     st.stop()
-
 # ==========================================
 # --- PDF Generators ---
 # ==========================================
