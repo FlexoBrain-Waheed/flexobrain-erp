@@ -39,32 +39,19 @@ current_user_id = st.session_state.get("user_id", "")
 current_user_name = USERS_DB.get(current_user_id, "Sales Department")
 
 # ==========================================
-# --- Universal Database Connection ---
+# --- Supabase Database Connection (Corrected) ---
 # ==========================================
 @st.cache_resource
 def init_connection():
-    try:
-        # Fetching the secrets
-        raw_url = st.secrets.get("SUPABASE_URL", "")
-        raw_key = st.secrets.get("SUPABASE_KEY", "")
-        
-        # Radical Cleanup: Remove ALL invisible spaces, newlines, and literal quotes
-        clean_url = str(raw_url).strip().replace('"', '').replace("'", "").replace("\n", "")
-        clean_key = str(raw_key).strip().replace('"', '').replace("'", "").replace("\n", "")
-        
-        if not clean_url or not clean_key:
-            st.error("⚠️ Credentials missing. Check Streamlit Secrets.")
-            st.stop()
-            
-        return create_client(clean_url, clean_key)
-    except Exception as e:
-        st.error(f"⚠️ Connection Error: {e}")
-        st.stop()
+    # Corrected URL (Removed the extra typo letter)
+    url = "https://rhyupeqypyunfknahsuv.supabase.co"
+    key = "sb_publishable_7781KhsQjsyYHALLIkf-Gg_qz8AVA46"
+    return create_client(url, key)
 
 try:
     supabase: Client = init_connection()
 except Exception as e:
-    st.error(f"⚠️ DB Error: {e}")
+    st.error(f"⚠️ Connection Error: {e}")
     st.stop()
 
 # ==========================================
