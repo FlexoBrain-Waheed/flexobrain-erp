@@ -29,14 +29,26 @@ USERS_DB = {"p11": "Eng. Amr Al mahmoudi", "p22": "Production Manager", "p33": "
 current_user_name = USERS_DB.get(st.session_state.get("user_id", ""), "Sales Department")
 
 # ==========================================
-# --- Supabase Database Connection ---
+# --- Supabase Database Connection (SMART) ---
 # ==========================================
 @st.cache_resource
 def init_connection():
-    # Using direct flat keys
-    url = st.secrets["SUPABASE_URL"].strip()
-    key = st.secrets["SUPABASE_KEY"].strip()
-    return create_client(url, key)
+    try:
+        # Smart detection: Checks both flat and nested secret formats
+        if "SUPABASE_URL" in st.secrets:
+            url = st.secrets["SUPABASE_URL"]
+            key = st.secrets["SUPABASE_KEY"]
+        elif "supabase" in st.secrets:
+            url = st.secrets["supabase"]["url"]
+            key = st.secrets["supabase"]["key"]
+        else:
+            st.error("⚠️ Credentials missing. Please add Supabase keys to Streamlit Secrets.")
+            st.stop()
+            
+        return create_client(str(url).strip(), str(key).strip())
+    except Exception as e:
+        st.error(f"⚠️ Secrets parsing error: {e}")
+        st.stop()
 
 try:
     supabase: Client = init_connection()
@@ -44,6 +56,9 @@ except Exception as e:
     st.error(f"⚠️ Database connection failed: {e}")
     st.stop()
 
+# ==========================================
+# --- PDF Generator ---
+# ==========================================
 def create_pdf(data_dict, artwork_url=None, stamp_name="Sales Department"):
     pdf = FPDF()
     pdf.add_page()
