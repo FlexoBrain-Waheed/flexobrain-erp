@@ -29,35 +29,32 @@ USERS_DB = {"p11": "Eng. Amr Al mahmoudi", "p22": "Production Manager", "p33": "
 current_user_name = USERS_DB.get(st.session_state.get("user_id", ""), "Sales Department")
 
 # ==========================================
-# --- Supabase Database Connection (Bulletproof) ---
+# --- Universal Database Connection ---
 # ==========================================
 @st.cache_resource
 def init_connection():
     try:
-        # Smart detection
-        if "SUPABASE_URL" in st.secrets:
-            raw_url = str(st.secrets["SUPABASE_URL"])
-            raw_key = str(st.secrets["SUPABASE_KEY"])
-        elif "supabase" in st.secrets:
-            raw_url = str(st.secrets["supabase"]["url"])
-            raw_key = str(st.secrets["supabase"]["key"])
-        else:
-            st.error("⚠️ Credentials missing in Secrets.")
+        # Fetching the secrets
+        raw_url = st.secrets.get("SUPABASE_URL", "")
+        raw_key = st.secrets.get("SUPABASE_KEY", "")
+        
+        # Radical Cleanup: Remove ALL invisible spaces, newlines, and literal quotes
+        clean_url = str(raw_url).strip().replace('"', '').replace("'", "").replace("\n", "")
+        clean_key = str(raw_key).strip().replace('"', '').replace("'", "").replace("\n", "")
+        
+        if not clean_url or not clean_key:
+            st.error("⚠️ Credentials missing. Check Streamlit Secrets.")
             st.stop()
             
-        # 🛑 Aggressive Cleanup: Remove accidental quotes and spaces
-        clean_url = raw_url.strip().replace('"', '').replace("'", "")
-        clean_key = raw_key.strip().replace('"', '').replace("'", "")
-        
         return create_client(clean_url, clean_key)
     except Exception as e:
-        st.error(f"⚠️ Secrets parsing error: {e}")
+        st.error(f"⚠️ Connection Error: {e}")
         st.stop()
 
 try:
     supabase: Client = init_connection()
 except Exception as e:
-    st.error(f"Error fetching data: {e}")
+    st.error(f"⚠️ DB Error: {e}")
     st.stop()
 
 # ==========================================
