@@ -29,12 +29,12 @@ USERS_DB = {"p11": "Eng. Amr Al mahmoudi", "p22": "Production Manager", "p33": "
 current_user_name = USERS_DB.get(st.session_state.get("user_id", ""), "Sales Department")
 
 # ==========================================
-# --- Supabase Database Connection (Hardcoded Test) ---
+# --- Supabase Database Connection (Corrected) ---
 # ==========================================
 @st.cache_resource
 def init_connection():
-    # وضعنا الروابط مباشرة لنتجاوز أي مشكلة مخفية في السيرفر
-    url = "https://rhyupeqpypyunfknahsuv.supabase.co"
+    # Corrected URL (Removed the extra typo letter)
+    url = "https://rhyupeqypyunfknahsuv.supabase.co"
     key = "sb_publishable_7781KhsQjsyYHALLIkf-Gg_qz8AVA46"
     return create_client(url, key)
 
