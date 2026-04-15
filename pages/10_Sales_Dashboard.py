@@ -33,9 +33,9 @@ current_user_name = USERS_DB.get(st.session_state.get("user_id", ""), "Sales Dep
 # ==========================================
 @st.cache_resource
 def init_connection():
-    # 🛑 FIX: Using the correct nested structure for Streamlit Cloud secrets
-    url = st.secrets["supabase"]["url"]
-    key = st.secrets["supabase"]["key"]
+    # Using direct flat keys
+    url = st.secrets["SUPABASE_URL"].strip()
+    key = st.secrets["SUPABASE_KEY"].strip()
     return create_client(url, key)
 
 try:
