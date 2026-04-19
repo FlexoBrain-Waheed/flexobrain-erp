@@ -23,13 +23,13 @@ with col1:
     st.subheader("📦 Sales & Orders")
     st.page_link("pages/10_Sales_Dashboard.py", label="Sales Dashboard", icon="📊")
     st.page_link("pages/11_OPP_Label_Order.py", label="OPP Label Form", icon="🏷️")
-    # If you have other sales files, add them here in the same way
 
 with col2:
     st.subheader("⚙️ Production & Planning")
-    # Ensure these file names match the ones you have in the 'pages' folder
+    # ✅ Added the newly renamed Printing Press Monitoring page here!
     try:
         st.page_link("pages/20_Smart_Scheduler.py", label="Smart Scheduler", icon="📅")
+        st.page_link("pages/24_Printing_Press_Monitoring.py", label="Printing Press Monitoring", icon="🖨️")
         st.page_link("pages/25_Production_Board.py", label="Production Board", icon="🏭")
     except Exception:
         st.caption("⏳ Production modules loading...")
